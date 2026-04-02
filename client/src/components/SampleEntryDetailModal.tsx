@@ -1,0 +1,1868 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { API_URL } from '../config/api';
+
+interface SampleEntry {
+    id: string;
+    serialNo?: number;
+    entryDate: string;
+    createdAt: string;
+    brokerName: string;
+    variety: string;
+    partyName: string;
+    location: string;
+    bags: number;
+    packaging?: string;
+    lorryNumber?: string;
+    entryType?: string;
+    sampleCollectedBy?: string;
+    workflowStatus: string;
+    lotSelectionDecision?: string;
+    lotSelectionAt?: string;
+    resampleStartAt?: string;
+    cancelRemarks?: string;
+    failRemarks?: string | null;
+    qualityReportAttempts?: number;
+    qualityAttemptDetails?: any[];
+    qualityParameters?: {
+        moisture: number;
+        cutting1: number;
+        cutting2: number;
+        bend: number;
+        bend1: number;
+        bend2: number;
+        mixS: number;
+        mixL: number;
+        mix: number;
+        kandu: number;
+        oil: number;
+        sk: number;
+        grainsCount: number;
+        wbR: number;
+        wbBk: number;
+        wbT: number;
+        paddyWb: number;
+        smellHas?: boolean;
+        smellType?: string | null;
+        reportedBy: string;
+        uploadFileUrl?: string;
+    };
+    cookingReport?: {
+        status: string;
+        cookingResult: string;
+        recheckCount?: number;
+        remarks?: string;
+        cookingDoneBy?: string;
+        cookingApprovedBy?: string;
+        updatedAt?: string;
+        createdAt?: string;
+        history?: Array<{
+            date?: string | null;
+            status?: string | null;
+            cookingDoneBy?: string | null;
+            approvedBy?: string | null;
+            remarks?: string | null;
+        }>;
+    };
+    offering?: {
+        finalPrice?: number;
+        offeringPrice?: number;
+        offerBaseRateValue?: number;
+        baseRateType?: string;
+        baseRateUnit?: string;
+        finalBaseRate?: number;
+        finalBaseRateType?: string;
+        finalBaseRateUnit?: string;
+        finalSute?: number;
+        finalSuteUnit?: string;
+        sute?: number;
+        suteUnit?: string;
+        moistureValue?: number;
+        hamali?: number;
+        hamaliUnit?: string;
+        brokerage?: number;
+        brokerageUnit?: string;
+        lf?: number;
+        lfUnit?: string;
+        egbType?: string;
+        egbValue?: number;
+        cdEnabled?: boolean;
+        cdValue?: number;
+        cdUnit?: string;
+        bankLoanEnabled?: boolean;
+        bankLoanValue?: number;
+        bankLoanUnit?: string;
+        paymentConditionValue?: number;
+        paymentConditionUnit?: string;
+        offerVersions?: Array<{
+            key: string;
+            offerBaseRateValue?: number;
+            baseRateType?: string;
+            baseRateUnit?: string;
+            offeringPrice?: number;
+            finalPrice?: number;
+            finalBaseRate?: number;
+            moistureValue?: number;
+            hamali?: number;
+            hamaliUnit?: string;
+            brokerage?: number;
+            brokerageUnit?: string;
+            lf?: number;
+            lfUnit?: string;
+            egbType?: string;
+            egbValue?: number;
+            cdValue?: number;
+            cdUnit?: string;
+            bankLoanValue?: number;
+            bankLoanUnit?: string;
+            paymentConditionValue?: number;
+            paymentConditionUnit?: string;
+        }>;
+    };
+    creator?: { username: string };
+    staffEntryEditAllowance?: number;
+    staffQualityEditAllowance?: number;
+    entryEditApprovalStatus?: string | null;
+    entryEditApprovalReason?: string | null;
+    entryEditApprovalRequestedAt?: string | null;
+    entryEditApprovalRequestedByName?: string | null;
+    qualityEditApprovalStatus?: string | null;
+    qualityEditApprovalReason?: string | null;
+    qualityEditApprovalRequestedAt?: string | null;
+    qualityEditApprovalRequestedByName?: string | null;
+}
+
+const toTitleCase = (str: string) => str ? str.replace(/\b\w/g, c => c.toUpperCase()) : '';
+const toSentenceCase = (value: string) => {
+    const normalized = String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    if (!normalized) return '';
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+const resolveMediaUrl = (value?: string | null) => {
+    const url = String(value || '').trim();
+    if (!url) return '';
+    if (/^https?:\/\//i.test(url)) return url;
+    const baseUrl = API_URL.replace(/\/api\/?$/, '');
+    return url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
+};
+const getPartyLabel = (entry: SampleEntry) => {
+    const partyNameText = toTitleCase(entry.partyName || '').trim();
+    const lorryText = entry.lorryNumber ? entry.lorryNumber.toUpperCase() : '';
+    if (entry.entryType === 'DIRECT_LOADED_VEHICLE') return lorryText || partyNameText || '-';
+    return partyNameText || lorryText || '-';
+};
+const getPartyDisplayParts = (entry: SampleEntry) => {
+    const partyNameText = toTitleCase(entry.partyName || '').trim();
+    const lorryText = entry.lorryNumber ? entry.lorryNumber.toUpperCase() : '';
+    
+    // FIXED: For DIRECT_LOADED_VEHICLE with empty partyName, use lorryNumber as primary label
+    if (entry.entryType === 'DIRECT_LOADED_VEHICLE' && !partyNameText && lorryText) {
+        return {
+            label: lorryText,
+            lorryText,
+            showLorrySecondLine: false
+        };
+    }
+    
+    return {
+        label: partyNameText || lorryText || '-',
+        lorryText,
+        showLorrySecondLine: entry.entryType === 'DIRECT_LOADED_VEHICLE'
+            && !!partyNameText
+            && !!lorryText
+            && partyNameText.toUpperCase() !== lorryText
+    };
+};
+const toNumberText = (value: any, digits = 2) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num.toFixed(digits).replace(/\.00$/, '') : '-';
+};
+const formatIndianCurrency = (value: any) => {
+    const num = Number(value);
+    return Number.isFinite(num)
+        ? num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '-';
+};
+const formatRateUnitLabel = (value?: string) => value === 'per_quintal'
+    ? 'Per Qtl'
+    : value === 'per_ton'
+        ? 'Per Ton'
+        : value === 'per_kg'
+            ? 'Per Kg'
+            : 'Per Bag';
+const formatToggleUnitLabel = (value?: string) => value === 'per_quintal'
+    ? 'Per Qtl'
+    : value === 'percentage'
+        ? '%'
+        : value === 'lumps'
+            ? 'Lumps'
+            : value === 'per_kg'
+                ? 'Per Kg'
+                : 'Per Bag';
+const formatShortDateTime = (value?: string | null) => {
+    if (!value) return '';
+    try {
+        return new Date(value).toLocaleString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch {
+        return '';
+    }
+};
+const getTimeValue = (value?: string | null) => {
+    if (!value) return 0;
+    const time = new Date(value).getTime();
+    return Number.isFinite(time) ? time : 0;
+};
+const formatDateInputValue = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+const hasAlphaOrPositiveValue = (val: any) => {
+  if (val === null || val === undefined || val === '') return false;
+  const raw = String(val).trim();
+  if (!raw) return false;
+  if (/[a-zA-Z]/.test(raw)) return true;
+  const num = parseFloat(raw);
+  return Number.isFinite(num);
+};
+const isProvidedNumeric = (rawVal: any, valueVal: any) => {
+  const raw = rawVal !== null && rawVal !== undefined ? String(rawVal).trim() : '';
+  if (raw !== '') return true;
+  const num = Number(valueVal);
+  return Number.isFinite(num) && num > 0;
+};
+const isProvidedAlpha = (rawVal: any, valueVal: any) => {
+  const raw = rawVal !== null && rawVal !== undefined ? String(rawVal).trim() : '';
+  if (raw !== '') return true;
+  return hasAlphaOrPositiveValue(valueVal);
+};
+
+const hasQualitySnapshot = (attempt: any) => {
+  const hasMoisture = isProvidedNumeric(attempt?.moistureRaw, attempt?.moisture);
+  const hasGrains = isProvidedNumeric(attempt?.grainsCountRaw, attempt?.grainsCount);
+  const hasDetailedQuality =
+    isProvidedNumeric(attempt?.cutting1Raw, attempt?.cutting1) ||
+    isProvidedNumeric(attempt?.bend1Raw, attempt?.bend1) ||
+    isProvidedAlpha(attempt?.mixRaw, attempt?.mix) ||
+    isProvidedAlpha(attempt?.mixSRaw, attempt?.mixS) ||
+    isProvidedAlpha(attempt?.mixLRaw, attempt?.mixL) ||
+    isProvidedAlpha(attempt?.kanduRaw, attempt?.kandu) ||
+    isProvidedAlpha(attempt?.oilRaw, attempt?.oil) ||
+    isProvidedAlpha(attempt?.skRaw, attempt?.sk);
+
+  return hasMoisture && (hasGrains || hasDetailedQuality);
+};
+
+const getResampleRoundLabel = (attempts: number) => {
+    if (attempts <= 1) return '';
+    return `Re-sample Round ${attempts}`;
+};
+const getSamplingLabel = (attemptNo: number) => {
+    if (attemptNo <= 1) return '1st';
+    if (attemptNo === 2) return '2nd';
+    if (attemptNo === 3) return '3rd';
+    return `${attemptNo}th`;
+};
+const getQualityAttemptsForEntry = (entry: any) => {
+    const getAttemptFingerprint = (attempt: any) => ([
+        attempt?.reportedBy ?? '',
+        attempt?.moistureRaw ?? attempt?.moisture ?? '',
+        attempt?.grainsCountRaw ?? attempt?.grainsCount ?? '',
+        attempt?.cutting1Raw ?? attempt?.cutting1 ?? '',
+        attempt?.cutting2Raw ?? attempt?.cutting2 ?? '',
+        attempt?.bend1Raw ?? attempt?.bend1 ?? '',
+        attempt?.bend2Raw ?? attempt?.bend2 ?? '',
+        attempt?.mixRaw ?? attempt?.mix ?? '',
+        attempt?.mixSRaw ?? attempt?.mixS ?? '',
+        attempt?.mixLRaw ?? attempt?.mixL ?? '',
+        attempt?.kanduRaw ?? attempt?.kandu ?? '',
+        attempt?.oilRaw ?? attempt?.oil ?? '',
+        attempt?.skRaw ?? attempt?.sk ?? '',
+        attempt?.wbRRaw ?? attempt?.wbR ?? '',
+        attempt?.wbBkRaw ?? attempt?.wbBk ?? '',
+        attempt?.wbTRaw ?? attempt?.wbT ?? '',
+        attempt?.paddyWbRaw ?? attempt?.paddyWb ?? '',
+        attempt?.smellHas ?? '',
+        attempt?.smellType ?? ''
+    ].map((value) => String(value ?? '').trim()).join('|'));
+
+    const baseAttempts = Array.isArray(entry?.qualityAttemptDetails)
+        ? [...entry.qualityAttemptDetails].filter(Boolean).sort((a: any, b: any) => (a.attemptNo || 0) - (b.attemptNo || 0))
+        : [];
+    const normalizedBaseAttempts = baseAttempts.reduce((acc: any[], attempt: any) => {
+        const previous = acc[acc.length - 1];
+        if (!previous) {
+            acc.push(attempt);
+            return acc;
+        }
+
+        const sameAttemptNo = Number(previous?.attemptNo || 0) === Number(attempt?.attemptNo || 0);
+        const sameFingerprint = getAttemptFingerprint(previous) === getAttemptFingerprint(attempt);
+
+        if (sameAttemptNo && sameFingerprint) {
+            acc[acc.length - 1] = { ...previous, ...attempt };
+            return acc;
+        }
+
+        acc.push(attempt);
+        return acc;
+    }, []);
+    const currentQuality = entry?.qualityParameters;
+
+    if (normalizedBaseAttempts.length > 0) {
+        return normalizedBaseAttempts.map((attempt: any, index: number) => ({
+            ...attempt,
+            attemptNo: Number(attempt?.attemptNo) || index + 1
+        }));
+    }
+
+    if (!currentQuality || !hasQualitySnapshot(currentQuality)) return [];
+    return [{ ...currentQuality, attemptNo: 1 }];
+};
+
+const getQualityAttemptSmellLabel = (entry: any, attempt?: any, isLatestAttempt = false) => {
+    const sources: any[] = [];
+    const attemptDetails = Array.isArray(entry?.qualityAttemptDetails) ? entry.qualityAttemptDetails.filter(Boolean) : [];
+    const attemptNo = Number(attempt?.attemptNo || 0);
+
+    if (attempt) sources.push(attempt);
+    if (attemptNo > 0) {
+        const matchingAttempts = attemptDetails.filter((item: any) => Number(item?.attemptNo || 0) === attemptNo);
+        sources.push(...matchingAttempts.reverse());
+    }
+    if (isLatestAttempt && entry?.qualityParameters) {
+        sources.push(entry.qualityParameters);
+    }
+    sources.push(entry);
+
+    for (const source of sources) {
+        const smellHas = source?.smellHas;
+        const smellType = source?.smellType;
+        if (smellHas || (smellType && String(smellType).trim())) {
+            return toTitleCase(smellType || 'Yes');
+        }
+    }
+
+    return '-';
+};
+const getSmellLabelRobust = (entry: any, attempt?: any) => {
+    // Check ALL possible sources of smell data in order of priority
+    
+    // 1. Check qualityAttempts array (for resample entries)
+    if (Array.isArray(entry?.qualityAttemptDetails)) {
+        for (let i = entry.qualityAttemptDetails.length - 1; i >= 0; i--) {
+            const att = entry.qualityAttemptDetails[i];
+            if (att?.smellHas || (att?.smellType && String(att.smellType).trim())) {
+                return toTitleCase(att.smellType || 'Yes');
+            }
+        }
+    }
+    
+    // 2. Check qualityParameters (most recent quality entry)
+    if (entry?.qualityParameters) {
+        const qpSmellHas = entry.qualityParameters.smellHas;
+        const qpSmellType = entry.qualityParameters.smellType;
+        if (qpSmellHas || (qpSmellType && String(qpSmellType).trim())) {
+            return toTitleCase(qpSmellType || 'Yes');
+        }
+    }
+    
+    // 3. Check entry top-level (original smell from sample entry)
+    const entrySmellHas = entry?.smellHas;
+    const entrySmellType = entry?.smellType;
+    if (entrySmellHas || (entrySmellType && String(entrySmellType).trim())) {
+        return toTitleCase(entrySmellType || 'Yes');
+    }
+    
+    // 4. Check current attempt if provided
+    if (attempt) {
+        const aSmellHas = attempt?.smellHas;
+        const aSmellType = attempt?.smellType;
+        if (aSmellHas || (aSmellType && String(aSmellType).trim())) {
+            return toTitleCase(aSmellType || 'Yes');
+        }
+    }
+    
+    return '-';
+};
+
+const getPopupSmellSummary = (entry: any) => {
+    // Check all possible sources of smell data
+    const smellLabel = getSmellLabelRobust(entry);
+    if (smellLabel !== '-') {
+        const upperLabel = String(smellLabel || '').trim().toUpperCase();
+        const tone = upperLabel === 'LIGHT' ? '#e67e22' : (upperLabel === 'MEDIUM' ? '#f39c12' : '#c62828');
+        return {
+            label: 'Smell',
+            value: smellLabel,
+            tone: tone
+        };
+    }
+
+    const failRemarks = String(entry?.failRemarks || '').trim();
+    if (failRemarks && failRemarks.toLowerCase().includes('smell')) {
+        const failedLabel = toTitleCase(failRemarks.replace(/^failed:\s*/i, '').trim() || 'Smell');
+        return {
+            label: 'Failed Smell',
+            value: failedLabel,
+            tone: '#c62828'
+        };
+    }
+
+    return null;
+};
+
+
+
+export const SampleEntryDetailModal = ({ detailEntry, detailMode, onClose, onUpdate }: { detailEntry: SampleEntry, detailMode: 'quick' | 'history' | 'summary' | 'full', onClose: () => void, onUpdate?: () => void }) => {
+    const [supervisors, setSupervisors] = useState<any[]>([]);
+    const [cookingInput, setCookingInput] = useState<any>({});
+    const [isSaving, setIsSaving] = useState(false);
+    const [isCapturingGps, setIsCapturingGps] = useState(false);
+    const [isSavingGps, setIsSavingGps] = useState(false);
+    const [localGps, setLocalGps] = useState<string | null>((detailEntry as any).gpsCoordinates || null);
+    const [remarksPopup, setRemarksPopup] = useState({ isOpen: false, text: '' });
+    const [pricingDetail, setPricingDetail] = useState<{ entry: SampleEntry, mode: 'offer' | 'final' } | null>(null);
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const response = await axios.get(`${API_URL}/api/users/all-raw`);
+                const data: any = response.data;
+                const users = Array.isArray(data) ? data : data.success && Array.isArray(data.data) ? data.data : [];
+                setSupervisors(users.filter((u: any) => u && u.username));
+            } catch (error) {
+                console.error('Error fetching users for cooking:', error);
+            }
+        };
+        fetchUsers();
+    }, []);
+
+    const setDetailEntry = (val: any) => {
+        if (!val) {
+            onClose();
+        }
+    };
+
+    const handleCaptureAndSaveGps = () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser');
+            return;
+        }
+
+        setIsCapturingGps(true);
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                const coords = `${latitude},${longitude}`;
+                
+                try {
+                    setIsSavingGps(true);
+                    // Use multipart/form-data because the backend PUT /:id route uses it
+                    const formData = new FormData();
+                    formData.append('gpsCoordinates', coords);
+
+                    await axios.put(`${API_URL}/api/sample-entries/${detailEntry.id}`, formData, {
+                        headers: {
+                            Authorization: `Bearer ${localStorage.getItem('token')}`,
+                            'Content-Type': 'multipart/form-data'
+                        }
+                    });
+
+                    setLocalGps(coords);
+                    if (onUpdate) onUpdate();
+                } catch (error: any) {
+                    console.error('Failed to save GPS:', error);
+                    alert(error.response?.data?.error || 'Failed to save GPS coordinates');
+                } finally {
+                    setIsCapturingGps(false);
+                    setIsSavingGps(false);
+                }
+            },
+            (error) => {
+                console.error('GPS error:', error);
+                setIsCapturingGps(false);
+                alert('Failed to capture GPS location. Please ensure location permissions are enabled.');
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    };
+
+
+    // Need an empty stub for recheckModal or removed buttons?
+    // The popup might render recheck modal if called, but it's only rendered conditionally if recheckModal.isOpen
+    // We can just stub setRecheckModal if the popup JSX tries to call it.
+    const setRecheckModal = () => {
+        console.warn("Recheck is disabled in this detached modal views.");
+    };
+
+    const getCollectorLabel = (value?: string | null) => {
+        const raw = typeof value === 'string' ? value.trim() : '';
+        if (!raw) return '-';
+        if (raw.toLowerCase() === 'broker office sample') return 'Broker Office Sample';
+        const match = supervisors.find((sup) => String(sup.username || '').trim().toLowerCase() === raw.toLowerCase());
+        if (match?.fullName) return toTitleCase(match.fullName);
+        return toTitleCase(raw);
+    };
+    const getCreatorLabel = (entry: SampleEntry) => {
+        const creator = (entry as any)?.creator;
+        const raw = creator?.fullName || creator?.username || '';
+        return raw ? toTitleCase(raw) : '-';
+    };
+    const getOriginalCollector = (entry: SampleEntry) => {
+        const history = Array.isArray((entry as any)?.sampleCollectedHistory) ? (entry as any).sampleCollectedHistory : [];
+        const firstHistoryValue = history.find((value: any) => String(value || '').trim());
+        return String(firstHistoryValue || entry.sampleCollectedBy || '').trim();
+    };
+    const getCollectedByDisplay = (entry: SampleEntry) => {
+        const collectorLabel = getCollectorLabel(getOriginalCollector(entry) || null);
+        return {
+            primary: collectorLabel !== '-' ? collectorLabel : getCreatorLabel(entry),
+            secondary: null,
+            highlightPrimary: false
+        };
+    };
+
+
+
+    const normalizeCookingStatusLabel = (status?: string | null) => {
+        const normalized = String(status || '').trim().toUpperCase();
+        if (normalized === 'PASS' || normalized === 'OK') return 'Pass';
+        if (normalized === 'MEDIUM') return 'Medium';
+        if (normalized === 'FAIL') return 'Fail';
+        if (normalized === 'RECHECK') return 'Recheck';
+        if (normalized === 'RECHECKING') return 'Rechecking';
+        if (normalized === 'PENDING') return 'Pending';
+        return normalized ? toTitleCase(normalized.toLowerCase()) : 'Pending';
+    };
+
+    const getQualityTypeLabel = (attempt: any) => {
+        if (!attempt) return 'Pending';
+        const hasFullQuality = isProvidedNumeric((attempt as any).cutting1Raw, attempt.cutting1)
+            || isProvidedNumeric((attempt as any).bend1Raw, attempt.bend1)
+            || isProvidedAlpha((attempt as any).mixRaw, attempt.mix)
+            || isProvidedAlpha((attempt as any).mixSRaw, attempt.mixS)
+            || isProvidedAlpha((attempt as any).mixLRaw, attempt.mixL);
+        const has100g = isProvidedNumeric((attempt as any).grainsCountRaw, attempt.grainsCount);
+        if (hasFullQuality) return 'Done';
+        if (has100g) return '100-Gms';
+        return 'Pending';
+    };
+
+    const getQualityTypeStyle = (label: string) => {
+        if (label === 'Done') return { bg: '#c8e6c9', color: '#2e7d32' };
+        if (label === '100-Gms') return { bg: '#fff8e1', color: '#f57f17' };
+        if (label === 'Recheck') return { bg: '#e3f2fd', color: '#1565c0' };
+        if (label === 'Resample') return { bg: '#fff3e0', color: '#ef6c00' };
+        return { bg: '#f5f5f5', color: '#666' };
+    };
+
+    const getStatusStyle = (label: string) => {
+        if (label === 'Pass') return { bg: '#a5d6a7', color: '#1b5e20' };
+        if (label === 'Pass Without Cooking') return { bg: '#e3f2fd', color: '#1565c0' };
+        if (label === 'Medium') return { bg: '#ffe0b2', color: '#f39c12' };
+        if (label === 'Fail') return { bg: '#ffcdd2', color: '#b71c1c' };
+        if (label === 'Recheck' || label === 'Rechecking') return { bg: '#e3f2fd', color: '#1565c0' };
+        if (label === 'Resample' || label === 'Resampling') return { bg: '#fff3e0', color: '#ef6c00' };
+        return { bg: '#ffe0b2', color: '#e65100' };
+    };
+
+    const mapQualityDecisionToStatus = (decision: string | null | undefined) => {
+        const key = String(decision || '').toUpperCase();
+        if (key === 'FAIL') return 'Fail';
+        if (key.startsWith('PASS') || key === 'SOLDOUT') return 'Pass';
+        return 'Pending';
+    };
+
+const buildQualityStatusRows = (entry: SampleEntry) => {
+        const attemptsSorted = getQualityAttemptsForEntry(entry);
+        const isHardFailed = String(entry.workflowStatus || '').toUpperCase() === 'FAILED';
+        const isFailDecision = String(entry.lotSelectionDecision || '').toUpperCase() === 'FAIL' && String(entry.workflowStatus || '').toUpperCase() !== 'FAILED';
+        const isQualityRecheckPending = (entry as any).qualityPending === true
+            || ((entry as any).qualityPending == null && (entry as any).recheckRequested === true && (entry as any).recheckType !== 'cooking');
+        const isCookingOnlyRecheck = (entry as any).cookingPending === true && !isQualityRecheckPending;
+        const previousDecision = (entry as any).recheckPreviousDecision || null;
+        const hasCookingHistory = buildCookingStatusRows(entry).length > 0;
+        const isCookingDrivenResample = String(entry.lotSelectionDecision || '').toUpperCase() === 'FAIL' && hasCookingHistory;
+        const hasCurrentResampleQuality = attemptsSorted.length > 1;
+        
+        // FIXED: Check if resample quality is complete (has all required fields)
+        const hasCompleteResampleQuality = hasCurrentResampleQuality && attemptsSorted.length >= 2 && (() => {
+            const latestAttempt = attemptsSorted[attemptsSorted.length - 1];
+            return isProvidedNumeric((latestAttempt as any).moistureRaw, latestAttempt.moisture)
+                && isProvidedNumeric((latestAttempt as any).grainsCountRaw, latestAttempt.grainsCount)
+                && (
+                    isProvidedNumeric((latestAttempt as any).cutting1Raw, latestAttempt.cutting1)
+                    || isProvidedNumeric((latestAttempt as any).bend1Raw, latestAttempt.bend1)
+                    || isProvidedAlpha((latestAttempt as any).mixRaw, latestAttempt.mix)
+                    || isProvidedAlpha((latestAttempt as any).mixSRaw, latestAttempt.mixS)
+                    || isProvidedAlpha((latestAttempt as any).mixLRaw, latestAttempt.mixL)
+                );
+        })();
+        
+        const rows = attemptsSorted.map((attempt: any, idx: number) => {
+            const isLast = idx === attemptsSorted.length - 1;
+            let status = mapQualityDecisionToStatus(entry.lotSelectionDecision);
+
+            // LINE-WISE logic: 1st attempt stays Pass, only the failed attempt shows Fail
+            if (isHardFailed && attemptsSorted.length > 1) {
+                status = isLast ? 'Fail' : 'Pass';
+            } else if (isFailDecision) {
+                if (attemptsSorted.length <= 1) {
+                    status = 'Pass';
+                } else {
+                    status = isLast ? 'Pending' : 'Pass';
+                }
+            } else if (isLast && isQualityRecheckPending && !isCookingOnlyRecheck) {
+                status = mapQualityDecisionToStatus(previousDecision || entry.lotSelectionDecision);
+            } else if (isLast && isCookingDrivenResample) {
+                status = 'Pass';
+            }
+
+            if (entry.workflowStatus === 'CANCELLED' && status === 'Pending') {
+                status = '';
+            }
+
+            return {
+                type: getQualityTypeLabel(attempt),
+                status
+            };
+        });
+
+        if (entry.workflowStatus === 'CANCELLED') {
+            return rows;
+        }
+
+        if (rows.length === 0) {
+            if (isFailDecision) {
+                return [{ type: 'Pending', status: 'Resampling' }];
+            }
+            if (isQualityRecheckPending && !isCookingOnlyRecheck) {
+                return [{ type: 'Recheck', status: 'Rechecking' }];
+            }
+            return [];
+        }
+
+        // FIXED: Show resample status correctly
+        // If FAIL decision and no resample quality yet, show "Pending/Resampling"
+        if (isFailDecision && !hasCurrentResampleQuality) {
+            rows.push({ type: 'Pending', status: 'Resampling' });
+        }
+        // If FAIL decision and resample quality exists but hasCompleteResampleQuality
+        // then DO NOT add extra rows - the entry has completed its resample workflow
+        else if (isFailDecision && hasCompleteResampleQuality) {
+            // Entry has completed resample - don't add any extra rows
+            // The entry should now show in "Resample Pending" with the latest quality status
+        }
+        // If FAIL decision and resample quality exists but only 1 row (shouldn't happen but handle it)
+        else if (isFailDecision && hasCurrentResampleQuality && rows.length === 1 && !hasCompleteResampleQuality) {
+            rows.unshift({ type: 'Done', status: 'Pass' });
+            rows.push({ type: 'Pending', status: 'Resampling' });
+        }
+        // If FAIL decision and resample quality is incomplete, still show resampling
+        else if (isQualityRecheckPending && !isCookingOnlyRecheck && !hasCompleteResampleQuality) {
+            rows.push({ type: 'Recheck', status: 'Rechecking' });
+        } else if (isCookingDrivenResample && !hasCurrentResampleQuality && attemptsSorted.length <= 1 && String(entry.workflowStatus || '').toUpperCase() !== 'FAILED') {
+            rows.push({ type: 'Pending', status: 'Resampling' });
+        }
+
+        return rows;
+    };
+
+    const buildCookingStatusRows = (entry: SampleEntry) => {
+        const cr = entry.cookingReport;
+        const d = entry.lotSelectionDecision;
+        const isCookingRecheckPending = (entry as any).cookingPending === true
+            || ((entry as any).cookingPending == null && (entry as any).recheckRequested === true && (entry as any).recheckType === 'cooking');
+        const isQualityOnlyRecheck = (entry as any).qualityPending === true && !isCookingRecheckPending;
+        const hasResampleHistory = Boolean((entry as any)?.resampleStartAt)
+            || Number((entry as any)?.qualityReportAttempts || 0) > 1
+            || (Array.isArray((entry as any)?.resampleCollectedTimeline) && (entry as any).resampleCollectedTimeline.length > 0)
+            || (Array.isArray((entry as any)?.resampleCollectedHistory) && (entry as any).resampleCollectedHistory.length > 0);
+        const hasStoredCookingHistory = Array.isArray(cr?.history) && cr!.history.length > 0;
+
+        if (d === 'PASS_WITHOUT_COOKING' && !hasResampleHistory && !hasStoredCookingHistory) {
+            return [];
+        }
+
+        const toTs = (value: any) => {
+            if (!value) return 0;
+            const time = new Date(value).getTime();
+            return Number.isFinite(time) ? time : 0;
+        };
+
+        const historyRaw = Array.isArray(cr?.history) ? cr!.history : [];
+        const history = [...historyRaw].sort((a, b) => toTs((a as any)?.date || (a as any)?.updatedAt || (a as any)?.createdAt || '') - toTs((b as any)?.date || (b as any)?.updatedAt || (b as any)?.createdAt || ''));
+        const rows: Array<{ status: string; remarks: string; doneBy: string; doneDate: any; approvedBy: string; approvedDate: any; }> = [];
+        let pendingDone: { doneBy: string; doneDate: any; remarks: string } | null = null as { doneBy: string; doneDate: any; remarks: string } | null;
+
+        history.forEach((h: any) => {
+            const hasStatus = !!h?.status;
+            const doneByValue = String(h?.cookingDoneBy || '').trim();
+            const doneDateValue = h?.doneDate || h?.cookingDoneAt || h?.submittedAt || h?.date || null;
+
+            if (!hasStatus && doneByValue) {
+                pendingDone = {
+                    doneBy: doneByValue,
+                    doneDate: doneDateValue,
+                    remarks: String(h?.remarks || '').trim()
+                };
+                return;
+            }
+
+            if (hasStatus) {
+                rows.push({
+                    status: normalizeCookingStatusLabel(h.status),
+                    remarks: String(h?.remarks || '').trim(),
+                    doneBy: pendingDone?.doneBy || doneByValue || String(cr?.cookingDoneBy || '').trim(),
+                    doneDate: pendingDone?.doneDate || doneDateValue,
+                    approvedBy: String(h?.approvedBy || h?.cookingApprovedBy || cr?.cookingApprovedBy || '').trim(),
+                    approvedDate: h?.approvedDate || h?.cookingApprovedAt || h?.date || null
+                });
+                pendingDone = null;
+            }
+        });
+
+        if (rows.length === 0 && cr?.status) {
+            rows.push({
+                status: normalizeCookingStatusLabel(cr.status),
+                remarks: String(cr.remarks || '').trim(),
+                doneBy: String(cr.cookingDoneBy || '').trim(),
+                doneDate: (cr as any)?.doneDate || (cr as any)?.cookingDoneAt || (cr as any)?.date || cr.updatedAt || cr.createdAt || null,
+                approvedBy: String(cr.cookingApprovedBy || '').trim(),
+                approvedDate: (cr as any)?.approvedDate || (cr as any)?.cookingApprovedAt || (cr as any)?.date || cr.updatedAt || cr.createdAt || null
+            });
+        }
+
+        if (entry.workflowStatus === 'CANCELLED') {
+            return rows;
+        }
+
+        if (pendingDone) {
+            rows.push({
+                status: 'Pending',
+                remarks: pendingDone.remarks,
+                doneBy: pendingDone.doneBy,
+                doneDate: pendingDone.doneDate,
+                approvedBy: '',
+                approvedDate: null
+            });
+        } else if (isCookingRecheckPending && !isQualityOnlyRecheck) {
+            const lastRow = rows.length > 0 ? rows[rows.length - 1] : null;
+            if (!lastRow || (lastRow.status !== 'Recheck' && lastRow.status !== 'Pending')) {
+                rows.push({
+                    status: 'Recheck',
+                    remarks: String(cr?.remarks || '').trim(),
+                    doneBy: '',
+                    doneDate: null,
+                    approvedBy: '',
+                    approvedDate: null
+                });
+            }
+        }
+
+        return rows;
+    };
+
+    const cookingBadge = (entry: SampleEntry) => {
+        if (entry.lotSelectionDecision === 'PASS_WITHOUT_COOKING') {
+            return <span style={{ color: '#999', fontSize: '10px' }}>-</span>;
+        }
+
+        const rows = buildCookingStatusRows(entry);
+        const qualityAttempts = getQualityAttemptsForEntry(entry);
+        const shouldPrefixPassWithoutCooking =
+            String(entry.lotSelectionDecision || '').toUpperCase() === 'FAIL'
+            && qualityAttempts.length > 1
+            && rows.length === 1
+            && rows[0]?.status !== 'Pass Without Cooking';
+        const displayRows = shouldPrefixPassWithoutCooking
+            ? [{ status: 'Pass Without Cooking', remarks: '', doneBy: '', doneDate: null, approvedBy: '', approvedDate: null }, ...rows]
+            : rows;
+        if (displayRows.length === 0) return null;
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', width: '100%' }}>
+                {displayRows.map((row, idx) => {
+                    const style = getStatusStyle(row.status);
+                    return (
+                        <div key={`${entry.id}-cook-status-${idx}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '100%' }}>
+                            <span style={{ fontSize: '9px', fontWeight: '800', color: '#334155' }}>
+                                {getSamplingLabel(idx + 1)}
+                            </span>
+                            <span style={{ background: style.bg, color: style.color, padding: '1px 6px', borderRadius: '10px', fontSize: '9px', fontWeight: '700' }}>
+                                {row.status}
+                            </span>
+                            {row.remarks ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setRemarksPopup({ isOpen: true, text: row.remarks })}
+                                    style={{ color: '#8e24aa', fontSize: '9px', fontWeight: '700', cursor: 'pointer', background: 'transparent', border: 'none', padding: 0 }}
+                                >
+                                    Remarks
+                                </button>
+                            ) : null}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    const qualityBadge = (entry: SampleEntry) => {
+        const rows = buildQualityStatusRows(entry);
+
+        if (rows.length === 0) {
+            if (entry.workflowStatus === 'CANCELLED') return <span style={{ color: '#999', fontSize: '10px' }}>-</span>;
+            return <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}><span style={{ background: '#f5f5f5', color: '#c62828', padding: '2px 6px', borderRadius: '10px', fontSize: '9px' }}>Pending</span></div>;
+        }
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                {rows.map((row, idx) => {
+                    const typeStyle = getQualityTypeStyle(row.type);
+                    const statusStyle = row.status ? getStatusStyle(row.status) : { bg: 'transparent', color: 'transparent' };
+                    return (
+                        <div key={`${entry.id}-quality-row-${idx}`} style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '9px', fontWeight: '800', color: '#334155' }}>
+                                {getSamplingLabel(idx + 1)}
+                            </span>
+                            <span style={{ background: typeStyle.bg, color: typeStyle.color, padding: '2px 6px', borderRadius: '10px', fontSize: '9px', fontWeight: '700' }}>{row.type}</span>
+                            {row.status ? (
+                                <span style={{ background: statusStyle.bg, color: statusStyle.color, padding: '2px 6px', borderRadius: '10px', fontSize: '9px', fontWeight: '700' }}>{row.status}</span>
+                            ) : null}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+
+
+
+
+    if (!detailEntry) return null;
+
+    return (
+        <>
+            {/* Detail Popup — same design as AdminSampleBook */}
+            {
+                detailEntry && (() => {
+                    const detailOff = detailEntry.offering;
+                    const detailOfferVersions = detailOff?.offerVersions || [];
+                    const detailHasPricingSummary = Boolean(
+                        detailOff?.finalPrice
+                        || detailOff?.finalBaseRate
+                        || detailOff?.offerBaseRateValue
+                        || detailOff?.offeringPrice
+                        || detailOfferVersions.length > 0
+                    );
+                    const detailHasCookingHistory = buildCookingStatusRows(detailEntry).length > 0;
+                    const useCompactDetailShell = detailMode !== 'history'
+                        && !detailHasCookingHistory
+                        && !detailHasPricingSummary
+                        && getQualityAttemptsForEntry(detailEntry as any).length <= 1;
+                    const useWideSummaryLayout = detailMode === 'history' || detailHasCookingHistory || detailHasPricingSummary;
+                    return (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px 16px' }}
+                        onClick={() => setDetailEntry(null)}>
+                        <div style={{ backgroundColor: 'white', borderRadius: '8px', width: detailMode === 'history' ? '85vw' : (useCompactDetailShell ? 'min(520px, 95vw)' : '94vw'), maxWidth: detailMode === 'history' ? '88vw' : (useCompactDetailShell ? '95vw' : '1180px'), maxHeight: detailMode === 'history' ? '82vh' : '88vh', overflowY: 'auto', overflowX: detailMode === 'history' ? 'auto' : 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
+                            onClick={e => e.stopPropagation()}>
+                            {/* Redesigned Header — Green Background, Aligned Items */}
+                            <div style={{
+                                background: detailEntry.entryType === 'DIRECT_LOADED_VEHICLE'
+                                    ? '#1565c0'
+                                    : detailEntry.entryType === 'LOCATION_SAMPLE'
+                                        ? '#e67e22'
+                                        : '#4caf50',
+                                padding: '16px 20px', borderRadius: '8px 8px 0 0', color: 'white',
+                                position: 'relative'
+                            }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', marginBottom: '4px' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: '800', opacity: 0.9, textAlign: 'left' }}>
+                                        {new Date(detailEntry.entryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                    </div>
+                                    <div style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '1.5px', textTransform: 'uppercase', textAlign: 'center' }}>
+                                        {detailEntry.entryType === 'DIRECT_LOADED_VEHICLE' ? 'Ready Lorry' : detailEntry.entryType === 'LOCATION_SAMPLE' ? 'Location Sample' : 'Mill Sample'}
+                                    </div>
+                                    <div></div>
+                                </div>
+                                <div style={{
+                                    fontSize: '28px', fontWeight: '900', letterSpacing: '-0.5px', marginTop: '4px',
+                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '85%'
+                                }}>
+                                    {toTitleCase(detailEntry.brokerName) || '-'}
+                                </div>
+                                <button onClick={() => setDetailEntry(null)} style={{
+                                    position: 'absolute', top: '16px', right: '16px',
+                                    background: 'rgba(255,255,255,0.25)', border: 'none', borderRadius: '50%',
+                                    width: '32px', height: '32px', cursor: 'pointer', fontSize: '16px',
+                                    color: 'white', fontWeight: '900', display: 'flex', alignItems: 'center',
+                                    justifyContent: 'center', transition: 'all 0.2s',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                                }}>✕</button>
+                            </div>
+                            <div style={{ padding: '24px', backgroundColor: '#fff', borderBottomLeftRadius: '10px', borderBottomRightRadius: '10px', minWidth: detailMode === 'history' ? '1200px' : 'auto', position: 'relative' }}>
+                                {detailMode !== 'history' && !useCompactDetailShell && (() => {
+                                    const off = detailOff;
+                                    const versions = detailOfferVersions;
+                                    if (!off && versions.length === 0) return null;
+
+                                    return (
+                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                                            <h4 style={{ margin: 0, fontSize: '13px', color: '#1e293b', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', fontWeight: '900' }}>Pricing & Offers</h4>
+                                            {(off?.finalPrice || off?.finalBaseRate) && (
+                                                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '12px' }}>
+                                                    <div style={{ fontSize: '10px', color: '#166534', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Confirmed Final Price</div>
+                                                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#14532d' }}>Rs {toNumberText(off.finalPrice || off.finalBaseRate || 0)}</div>
+                                                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#15803d', marginTop: '4px' }}>{(off.finalBaseRateType || off.baseRateType || '').replace(/_/g, '/')} / {formatRateUnitLabel(off.finalBaseRateUnit || off.baseRateUnit)}</div>
+                                                </div>
+                                            )}
+                                            {versions.length > 0 && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                    {versions.map((ov: any, i: number) => (
+                                                        <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', minWidth: 0 }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', gap: '6px' }}>
+                                                                <span style={{ fontSize: '10px', fontWeight: '900', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>{ov.key}</span>
+                                                                {(ov.finalPrice || ov.finalBaseRate) && <span style={{ fontSize: '10px', fontWeight: '900', background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px' }}>PASSED</span>}
+                                                            </div>
+                                                            <div style={{ fontSize: '15px', fontWeight: '900', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Rs {toNumberText(ov.offerBaseRateValue || ov.offeringPrice || 0)}</div>
+                                                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(ov.baseRateType || '').replace(/_/g, '/')}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {versions.length === 0 && (off?.offerBaseRateValue || off?.offeringPrice) && (
+                                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px' }}>
+                                                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>Active Offer</div>
+                                                    <div style={{ fontSize: '16px', fontWeight: '900', color: '#1e293b' }}>Rs {toNumberText(off.offerBaseRateValue || off.offeringPrice || 0)}</div>
+                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>{(off.baseRateType || '').replace(/_/g, '/')} / {formatRateUnitLabel(off.baseRateUnit)}</div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                                {/* Basic Info Grid */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px', maxWidth: '100%' }}>
+                                    {[
+                                        ['Date', new Date(detailEntry.entryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })],
+                                        ['Total Bags', detailEntry.bags?.toLocaleString('en-IN')],
+                                        ['Packaging', `${detailEntry.packaging || '75'} Kg`],
+                                        ['Variety', toTitleCase(detailEntry.variety || '-')],
+                                    ].map(([label, value], i) => (
+                                        <div key={i} style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                            <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+                                            <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>{value || '-'}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px', maxWidth: '100%' }}>
+                                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Party Name</div>
+                                        {(() => {
+                                            const partyDisplay = getPartyDisplayParts(detailEntry);
+                                            const partyName = toTitleCase(detailEntry.partyName || '').trim();
+                                            const hasParty = partyName && partyName !== '-';
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+                                                    {hasParty ? (
+                                                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                            {partyDisplay.label}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{partyDisplay.label}</div>
+                                                    )}
+                                                    {partyDisplay.showLorrySecondLine ? (
+                                                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#1565c0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{partyDisplay.lorryText}</div>
+                                                    ) : null}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Location</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                            <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>{toTitleCase(detailEntry.location || '-')}</div>
+                                            {detailEntry.entryType === 'LOCATION_SAMPLE' && (detailEntry as any).gpsCoordinates && (() => {
+                                                const gps = (detailEntry as any).gpsCoordinates;
+                                                const query = typeof gps === 'object' ? `${gps.lat},${gps.lng}` : gps;
+                                                return (
+                                                    <a
+                                                        href={`https://www.google.com/maps/search/?api=1&query=${query}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title="View on Map"
+                                                        style={{ fontSize: '14px', textDecoration: 'none', marginTop: '4px' }}
+                                                    >
+                                                        📍
+                                                    </a>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+                                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Collected By</div>
+                                        {(() => {
+                                            const collectedByDisplay = getCollectedByDisplay(detailEntry);
+                                            if (collectedByDisplay.secondary) {
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                                                        <span style={{ fontSize: '14px', fontWeight: '700', color: collectedByDisplay.highlightPrimary ? '#9c27b0' : '#1e293b' }}>
+                                                            {collectedByDisplay.primary}
+                                                        </span>
+                                                        <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '800' }}>/</span>
+                                                        <span style={{ fontSize: '12px', fontWeight: '600', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                            {collectedByDisplay.secondary}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }
+                                            return (
+                                                <div style={{ fontSize: '14px', fontWeight: '700', color: collectedByDisplay.highlightPrimary ? '#9c27b0' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {collectedByDisplay.primary}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                    {(() => {
+                                        const smellSummary = getPopupSmellSummary(detailEntry as any);
+                                        if (!smellSummary) return null;
+                                        return (
+                                            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Smell</div>
+                                                <div style={{ fontSize: '14px', fontWeight: '800', color: smellSummary.tone }}>
+                                                    {smellSummary.value} Smell
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                                {/* OLD: Party Name, Location, Collected By cards replaced above */}
+                                <div style={{ display: 'none' }}>
+                                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'none' }}>
+                                        {(() => {
+                                            const partyDisplay = getPartyDisplayParts(detailEntry);
+                                            const partyName = toTitleCase(detailEntry.partyName || '').trim();
+                                            const hasParty = partyName && partyName !== '-';
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+                                                    {hasParty ? (
+                                                        <span
+                                                            style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                                        >
+                                                            {partyDisplay.label}
+                                                        </span>
+                                                    ) : (
+                                                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{partyDisplay.label}</div>
+                                                    )}
+                                                    {partyDisplay.showLorrySecondLine ? (
+                                                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#1565c0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{partyDisplay.lorryText}</div>
+                                                    ) : null}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Location</div>
+                                        {(() => {
+                                            const locationName = toTitleCase(detailEntry.location || '').trim();
+                                            const hasLocation = locationName && locationName !== '-';
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                    {hasLocation ? (
+                                                        <span
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const token = localStorage.getItem('token');
+                                                                    const response = await axios.get<any>(`${API_URL}/sample-entries/by-role`, {
+                                                                        params: {
+                                                                            location: locationName,
+                                                                            page: 1,
+                                                                            pageSize: 100,
+                                                                            excludeEntryType: 'RICE_SAMPLE'
+                                                                        },
+                                                                        headers: { Authorization: `Bearer ${token}` }
+                                                                    });
+                                                                    const entries = response.data.entries || [];
+                                                                    alert(`Found ${entries.length} entries at location "${locationName}"`);
+                                                                } catch (err) {
+                                                                    console.error('Error fetching location entries:', err);
+                                                                }
+                                                            }}
+                                                            style={{ fontSize: '14px', fontWeight: '700', color: '#1565c0', cursor: 'pointer', textDecoration: 'underline' }}
+                                                            title={`Click to view all entries at ${locationName}`}
+                                                        >
+                                                            {locationName}
+                                                        </span>
+                                                    ) : (
+                                                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>{toTitleCase(detailEntry.location || '-')}</div>
+                                                    )}
+                                                    {detailEntry.entryType === 'LOCATION_SAMPLE' && (detailEntry as any).gpsCoordinates && (() => {
+                                                        const gps = (detailEntry as any).gpsCoordinates;
+                                                        const query = typeof gps === 'object' ? `${gps.lat},${gps.lng}` : gps;
+                                                        return (
+                                                            <a
+                                                                href={`https://www.google.com/maps/search/?api=1&query=${query}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                title="View on Map"
+                                                                style={{ fontSize: '14px', textDecoration: 'none' }}
+                                                            >
+                                                                📍
+                                                            </a>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Collected By</div>
+                                        {(() => {
+                                            const collectedByDisplay = getCollectedByDisplay(detailEntry);
+                                            if (collectedByDisplay.secondary) {
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                                                        <span style={{ fontSize: '14px', fontWeight: '700', color: collectedByDisplay.highlightPrimary ? '#9c27b0' : '#1e293b' }}>
+                                                            {collectedByDisplay.primary}
+                                                        </span>
+                                                        <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '800' }}>/</span>
+                                                        <span style={{ fontSize: '12px', fontWeight: '600', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                            {collectedByDisplay.secondary}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }
+                                            return (
+                                                <div style={{ fontSize: '14px', fontWeight: '700', color: collectedByDisplay.highlightPrimary ? '#9c27b0' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {collectedByDisplay.primary}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                                {/* Horizontal Layout: Quality Parameters / Cooking History */}
+                                <div style={{ display: 'grid', gridTemplateColumns: getQualityAttemptsForEntry(detailEntry as any).length > 1 ? 'minmax(0, 1fr)' : (useWideSummaryLayout ? (detailMode === 'history' ? 'repeat(auto-fit, minmax(340px, 1fr))' : 'minmax(0, 1fr) 340px') : 'minmax(0, 1fr)'), gap: '20px', marginTop: '20px', alignItems: 'start' }}>
+                                    {/* LEFT SIDE: Quality Parameters */}
+                                    <div style={{ minWidth: 0 }}>
+                                        <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#e67e22', borderBottom: '2px solid #e67e22', paddingBottom: '6px' }}>🔬 Quality Parameters</h4>
+                                        {(() => {
+                                    const qpAll = getQualityAttemptsForEntry(detailEntry as any);
+                                    const shouldShowAllQualityAttempts = detailMode === 'history'
+                                        || qpAll.length > 1
+                                        || (detailEntry as any).qualityPending === true
+                                        || (detailEntry as any).recheckRequested === true
+                                        || String(detailEntry.lotSelectionDecision || '').toUpperCase() === 'FAIL';
+                                    const qpList = shouldShowAllQualityAttempts
+                                        ? qpAll
+                                        : (qpAll.length > 0 ? [qpAll[qpAll.length - 1]] : []);
+
+                                    if (qpList.length === 0) {
+                                        const smellSummary = getPopupSmellSummary(detailEntry as any);
+                                        if (!smellSummary) {
+                                            return <div style={{ color: '#999', textAlign: 'center', padding: '12px', fontSize: '12px' }}>No quality data</div>;
+                                        }
+                                        return (
+                                            <div style={{ background: '#fff8f0', border: '1px solid #fbd38d', borderRadius: '8px', padding: '14px', textAlign: 'center' }}>
+                                                <div style={{ fontSize: '10px', fontWeight: '800', color: '#9a3412', textTransform: 'uppercase', marginBottom: '6px' }}>
+                                                    {smellSummary.label}
+                                                </div>
+                                                <div style={{ fontSize: '16px', fontWeight: '800', color: smellSummary.tone }}>
+                                                    {smellSummary.value}
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    const trimZeros = (raw: string) => raw.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+                                    const fmt = (v: any, forceDecimal = false, precision = 2) => {
+                                        if (v == null || v === '') return null;
+                                        if (typeof v === 'string') {
+                                            const raw = v.trim();
+                                            if (!raw) return null;
+                                            if (/[a-zA-Z]/.test(raw)) return raw;
+                                            const num = Number(raw);
+                                            if (!Number.isFinite(num) || num === 0) return null;
+                                            return trimZeros(raw);
+                                        }
+                                        const n = Number(v);
+                                        if (isNaN(n) || n === 0) return null;
+                                        const fixed = n.toFixed(forceDecimal ? 1 : precision);
+                                        return trimZeros(fixed);
+                                    };
+                                    const displayVal = (rawVal: any, numericVal: any, enabled = true) => {
+                                        if (!enabled) return null;
+                                        const raw = rawVal != null ? String(rawVal).trim() : '';
+                                        if (raw !== '') return raw;
+                                        if (numericVal == null || numericVal === '') return null;
+                                        const rawNumeric = String(numericVal).trim();
+                                        if (!rawNumeric) return null;
+                                        const num = Number(rawNumeric);
+                                        if (!Number.isFinite(num) || num === 0) return null;
+                                        return rawNumeric;
+                                    };
+                                    const isProvided = (rawVal: any, numericVal: any) => {
+                                        const raw = rawVal != null ? String(rawVal).trim() : '';
+                                        if (raw !== '') return true;
+                                        if (numericVal == null || numericVal === '') return false;
+                                        const rawNumeric = String(numericVal).trim();
+                                        if (!rawNumeric) return false;
+                                        const num = Number(rawNumeric);
+                                        return Number.isFinite(num) && num !== 0;
+                                    };
+                                    const isEnabled = (flag: any, rawVal: any, numericVal: any) => (
+                                        flag === true || (flag == null && isProvided(rawVal, numericVal))
+                                    );
+                                    const fmtB = (v: any, useBrackets = false) => {
+                                        const f = fmt(v);
+                                        return f && useBrackets ? `(${f})` : f;
+                                    };
+
+                                    const QItem = ({ label, value }: { label: string; value: React.ReactNode }) => {
+                                        const isBold = ['Grains Count', 'Paddy WB'].includes(label);
+                                        return (
+                                            <div style={{ background: '#f8f9fa', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                                                <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px', fontWeight: '600', textTransform: 'uppercase' }}>{label}</div>
+                                                <div style={{ fontSize: '12px', fontWeight: isBold ? '800' : '700', color: isBold ? '#000' : '#2c3e50' }}>{value || '-'}</div>
+                                            </div>
+                                        );
+                                    };
+                                    const qualityPhotoUrl = qpList.find((qp: any) => qp?.uploadFileUrl)?.uploadFileUrl;
+                                    const hasHistory = qpList.length > 1;
+                                    const useHorizontalQualityHistory = hasHistory;
+                                    const getAttemptLabel = (attemptNo: number, idx: number) => {
+                                        const num = attemptNo || idx + 1;
+                                        if (num === 1) return '1st Sample';
+                                        if (num === 2) return '2nd Sample';
+                                        if (num === 3) return '3rd Sample';
+                                        return `${num}th Sample`;
+                                    };
+
+                                    if (useHorizontalQualityHistory) {
+                                        const thStyle: React.CSSProperties = { padding: '6px 8px', textAlign: 'center', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', borderBottom: '2px solid #e0e0e0', background: '#fff8f0', color: '#9a3412' };
+                                        const tdStyle: React.CSSProperties = { padding: '5px 8px', textAlign: 'center', fontSize: '12px', fontWeight: '600', borderBottom: '1px solid #eee', whiteSpace: 'nowrap', color: '#333' };
+                                        const tdLabelStyle: React.CSSProperties = { ...tdStyle, textAlign: 'left', fontWeight: '800', color: '#9a3412', background: '#fff8f0', position: 'sticky' as any, left: 0, zIndex: 1 };
+
+                                        const getRowData = (qp: any, idx: number) => {
+                                            const smixOn = isEnabled(qp.smixEnabled, qp.mixSRaw, qp.mixS);
+                                            const lmixOn = isEnabled(qp.lmixEnabled, qp.mixLRaw, qp.mixL);
+                                            const paddyOn = isEnabled(qp.paddyWbEnabled, qp.paddyWbRaw, qp.paddyWb);
+                                            const wbOn = isProvided(qp.wbRRaw, qp.wbR) || isProvided(qp.wbBkRaw, qp.wbBk);
+                                            const smellLabel = getQualityAttemptSmellLabel(detailEntry as any, qp, idx === qpList.length - 1);
+                                            return {
+                                                label: getAttemptLabel(qp.attemptNo, idx),
+                                                reportedBy: toTitleCase(qp.reportedBy || '-'),
+                                                reportedAt: formatShortDateTime(qp.updatedAt || qp.createdAt || null) || '-',
+                                                moisture: (() => { const val = displayVal(qp.moistureRaw, qp.moisture); return val ? `${val}%` : '-'; })(),
+                                                cutting: (() => { const cut1 = displayVal(qp.cutting1Raw, qp.cutting1); const cut2 = displayVal(qp.cutting2Raw, qp.cutting2); return cut1 && cut2 ? `${cut1}x${cut2}` : '-'; })(),
+                                                bend: (() => { const bend1 = displayVal(qp.bend1Raw, qp.bend1); const bend2 = displayVal(qp.bend2Raw, qp.bend2); return bend1 && bend2 ? `${bend1}x${bend2}` : '-'; })(),
+                                                grainsCount: (() => { const val = displayVal(qp.grainsCountRaw, qp.grainsCount); return val ? `(${val})` : '-'; })(),
+                                                mix: displayVal(qp.mixRaw, qp.mix) || '-',
+                                                sMix: displayVal(qp.mixSRaw, qp.mixS, smixOn) || '-',
+                                                lMix: displayVal(qp.mixLRaw, qp.mixL, lmixOn) || '-',
+                                                kandu: displayVal(qp.kanduRaw, qp.kandu) || '-',
+                                                oil: displayVal(qp.oilRaw, qp.oil) || '-',
+                                                sk: displayVal(qp.skRaw, qp.sk) || '-',
+                                                wbR: displayVal(qp.wbRRaw, qp.wbR, wbOn) || '-',
+                                                wbBk: displayVal(qp.wbBkRaw, qp.wbBk, wbOn) || '-',
+                                                wbT: displayVal(qp.wbTRaw, qp.wbT, wbOn) || '-',
+                                                smell: smellLabel,
+                                                paddyWb: displayVal(qp.paddyWbRaw, qp.paddyWb, paddyOn) || '-',
+                                            };
+                                        };
+
+                                        const rows = qpList.map((qp: any, idx: number) => getRowData(qp, idx));
+
+                                        return (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                {qualityPhotoUrl && (
+                                                    <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '10px' }}>
+                                                        <div style={{ fontSize: '11px', fontWeight: '800', color: '#1d4ed8', marginBottom: '8px', textTransform: 'uppercase' }}>Quality Photo</div>
+                                                        <img src={resolveMediaUrl(qualityPhotoUrl)} alt="Quality" style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #e0e0e0' }} />
+                                                    </div>
+                                                )}
+                                                <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: '8px' }}>
+                                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '900px' }}>
+                                                        <thead>
+                                                            <tr>
+                                                                <th style={{ ...thStyle, textAlign: 'left', position: 'sticky' as any, left: 0, zIndex: 2, background: '#fff8f0', minWidth: '100px' }}>Sample</th>
+                                                                <th style={thStyle}>Sample Reported By</th>
+                                                                <th style={thStyle}>Reported At</th>
+                                                                <th style={thStyle}>Moisture</th>
+                                                                <th style={thStyle}>Cutting</th>
+                                                                <th style={thStyle}>Bend</th>
+                                                                <th style={thStyle}>Grains Count</th>
+                                                                <th style={thStyle}>Mix</th>
+                                                                <th style={thStyle}>S Mix</th>
+                                                                <th style={thStyle}>L Mix</th>
+                                                                <th style={thStyle}>Kandu</th>
+                                                                <th style={thStyle}>Oil</th>
+                                                                <th style={thStyle}>SK</th>
+                                                                <th style={thStyle}>WB-R</th>
+                                                                <th style={thStyle}>WB-BK</th>
+                                                                <th style={thStyle}>WB-T</th>
+                                                                <th style={thStyle}>Smell</th>
+                                                                <th style={thStyle}>Paddy WB</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {rows.map((row, idx) => (
+                                                                <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                                                    <td style={tdLabelStyle}>{row.label}</td>
+                                                                    <td style={tdStyle}>{row.reportedBy}</td>
+                                                                    <td style={{ ...tdStyle, fontSize: '10px' }}>{row.reportedAt}</td>
+                                                                    <td style={{ ...tdStyle, color: '#e67e22', fontWeight: '800' }}>{row.moisture}</td>
+                                                                    <td style={tdStyle}>{row.cutting}</td>
+                                                                    <td style={tdStyle}>{row.bend}</td>
+                                                                    <td style={{ ...tdStyle, fontWeight: '800' }}>{row.grainsCount}</td>
+                                                                    <td style={tdStyle}>{row.mix}</td>
+                                                                    <td style={tdStyle}>{row.sMix}</td>
+                                                                    <td style={tdStyle}>{row.lMix}</td>
+                                                                    <td style={tdStyle}>{row.kandu}</td>
+                                                                    <td style={tdStyle}>{row.oil}</td>
+                                                                    <td style={tdStyle}>{row.sk}</td>
+                                                                    <td style={tdStyle}>{row.wbR}</td>
+                                                                    <td style={tdStyle}>{row.wbBk}</td>
+                                                                    <td style={tdStyle}>{row.wbT}</td>
+                                                                    <td style={tdStyle}>{row.smell}</td>
+                                                                    <td style={tdStyle}>{row.paddyWb}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                            {qualityPhotoUrl && (
+                                                <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '10px' }}>
+                                                    <div style={{ fontSize: '11px', fontWeight: '800', color: '#1d4ed8', marginBottom: '8px', textTransform: 'uppercase' }}>Quality Photo</div>
+                                                    <img
+                                                        src={resolveMediaUrl(qualityPhotoUrl)}
+                                                        alt="Quality"
+                                                        style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #e0e0e0' }}
+                                                    />
+                                                </div>
+                                            )}
+                                            {qpList.map((qp: any, idx: number) => {
+                                                const smixOn = isEnabled(qp.smixEnabled, qp.mixSRaw, qp.mixS);
+                                                const lmixOn = isEnabled(qp.lmixEnabled, qp.mixLRaw, qp.mixL);
+                                                const paddyOn = isEnabled(qp.paddyWbEnabled, qp.paddyWbRaw, qp.paddyWb);
+                                                const wbOn = isProvided(qp.wbRRaw, qp.wbR) || isProvided(qp.wbBkRaw, qp.wbBk);
+                                                const dryOn = isProvided((qp as any).dryMoistureRaw, (qp as any).dryMoisture);
+                                                const row1: { label: string; value: React.ReactNode }[] = [];
+                                                const moistureVal = displayVal((qp as any).moistureRaw, qp.moisture);
+                                                if (moistureVal) {
+                                                    const dryVal = displayVal((qp as any).dryMoistureRaw, (qp as any).dryMoisture, dryOn);
+                                                    row1.push({
+                                                        label: 'Moisture',
+                                                        value: dryVal ? (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                                                                <span style={{ color: '#e67e22', fontWeight: '800', fontSize: '11px' }}>{dryVal}%</span>
+                                                                <span>{moistureVal}%</span>
+                                                            </div>
+                                                        ) : `${moistureVal}%`
+                                                    });
+                                                }
+                                                const cut1 = displayVal((qp as any).cutting1Raw, qp.cutting1);
+                                                const cut2 = displayVal((qp as any).cutting2Raw, qp.cutting2);
+                                                if (cut1 && cut2) row1.push({ label: 'Cutting', value: `${cut1}x${cut2}` });
+                                                const bend1 = displayVal((qp as any).bend1Raw, qp.bend1);
+                                                const bend2 = displayVal((qp as any).bend2Raw, qp.bend2);
+                                                if (bend1 && bend2) row1.push({ label: 'Bend', value: `${bend1}x${bend2}` });
+                                                const grainsVal = displayVal((qp as any).grainsCountRaw, qp.grainsCount);
+                                                if (grainsVal) row1.push({ label: 'Grains Count', value: `(${grainsVal})` });
+                                                
+                                                const row2: { label: string; value: React.ReactNode }[] = [];
+                                                const mixVal = displayVal((qp as any).mixRaw, qp.mix);
+                                                const mixSVal = displayVal((qp as any).mixSRaw, qp.mixS, smixOn);
+                                                const mixLVal = displayVal((qp as any).mixLRaw, qp.mixL, lmixOn);
+                                                if (mixVal) row2.push({ label: 'Mix', value: mixVal });
+                                                if (mixSVal) row2.push({ label: 'S Mix', value: mixSVal });
+                                                if (mixLVal) row2.push({ label: 'L Mix', value: mixLVal });
+                                                
+                                                const hasKandu = displayVal((qp as any).kanduRaw, qp.kandu);
+                                                const hasOil = displayVal((qp as any).oilRaw, qp.oil);
+                                                const hasSK = displayVal((qp as any).skRaw, qp.sk);
+                                                const row3: { label: string; value: React.ReactNode }[] = [];
+                                                if (hasKandu) row3.push({ label: 'Kandu', value: hasKandu });
+                                                if (hasOil) row3.push({ label: 'Oil', value: hasOil });
+                                                if (hasSK) row3.push({ label: 'SK', value: hasSK });
+                                                
+                                                const row4: { label: string; value: React.ReactNode }[] = [];
+                                                const row5: { label: string; value: React.ReactNode }[] = [];
+                                                const wbRVal = displayVal((qp as any).wbRRaw, qp.wbR, wbOn);
+                                                const wbBkVal = displayVal((qp as any).wbBkRaw, qp.wbBk, wbOn);
+                                                const wbTVal = displayVal((qp as any).wbTRaw, qp.wbT, wbOn);
+                                                if (wbRVal) row4.push({ label: 'WB-R', value: wbRVal });
+                                                if (wbBkVal) row4.push({ label: 'WB-BK', value: wbBkVal });
+                                                if (wbTVal) row4.push({ label: 'WB-T', value: wbTVal });
+                                                const hasPaddyWb = displayVal((qp as any).paddyWbRaw, qp.paddyWb, paddyOn);
+                                                if (hasPaddyWb) {
+                                                    row5.push({
+                                                        label: 'Paddy WB',
+                                                        value: (
+                                                            <span style={{
+                                                                color: Number(qp.paddyWb) < 50 ? '#d32f2f' : (Number(qp.paddyWb) <= 50.5 ? '#f39c12' : '#1b5e20'),
+                                                                fontWeight: '800'
+                                                            }}>
+                                                                {hasPaddyWb}
+                                                            </span>
+                                                        )
+                                                    });
+                                                }
+                                                const smellLabel = getQualityAttemptSmellLabel(detailEntry as any, qp, idx === qpList.length - 1);
+                                                if (smellLabel !== '-') row5.push({ label: 'Smell', value: smellLabel });
+                                                
+                                                const wrapperStyle = qpList.length > 1 ? { background: '#fcfcfc', border: '1px solid #eee', borderRadius: '6px', padding: '12px' } : {};
+
+                                                return (
+                                                    <div key={idx} style={wrapperStyle}>
+                                                        {qpList.length > 1 && (
+                                                            <div style={{ fontSize: '11px', fontWeight: '800', color: '#e67e22', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                                {qp.attemptNo ? `${qp.attemptNo}${qp.attemptNo === 1 ? 'st' : qp.attemptNo === 2 ? 'nd' : 'th'} Quality` : `${idx + 1}${idx === 0 ? 'st' : idx === 1 ? 'nd' : 'th'} Quality`}
+                                                            </div>
+                                                        )}
+                                                        {row1.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: `repeat(${row1.length}, 1fr)`, gap: '8px', marginBottom: '8px' }}>{row1.map(item => <QItem key={item.label} label={item.label} value={item.value} />)}</div>}
+                                                        {row2.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: `repeat(${row2.length}, 1fr)`, gap: '8px', marginBottom: '8px' }}>{row2.map(item => <QItem key={item.label} label={item.label} value={item.value} />)}</div>}
+                                                        {row3.length > 0 && (
+                                                            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${row3.length}, 1fr)`, gap: '8px', marginBottom: '8px' }}>
+                                                                {row3.map(item => <QItem key={item.label} label={item.label} value={item.value} />)}
+                                                            </div>
+                                                        )}
+                                                        {row4.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: `repeat(${row4.length}, 1fr)`, gap: '8px', marginBottom: '8px' }}>{row4.map(item => <QItem key={item.label} label={item.label} value={item.value} />)}</div>}
+                                                        {row5.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: `repeat(${row5.length}, 1fr)`, gap: '8px', marginBottom: '8px' }}>{row5.map(item => <QItem key={item.label} label={item.label} value={item.value} />)}</div>}
+                                                        {qp.reportedBy && (
+                                                            <div style={{ marginTop: '8px', borderTop: '1px dashed #e2e8f0', paddingTop: '6px' }}>
+                                                                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', textAlign: 'center' }}>
+                                                                    Reported By: <span style={{ color: '#1e293b', fontWeight: '800', fontSize: '13px' }}>{toSentenceCase(qp.reportedBy)}</span>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })()}
+                                    </div>
+                                    {useWideSummaryLayout && (
+                                    <div style={{ minWidth: 0 }}>
+                                        <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#1565c0', borderBottom: '2px solid #1565c0', paddingBottom: '6px' }}>Cooking History & Remarks</h4>
+                                        {(() => {
+                                            const rows = buildCookingStatusRows(detailEntry);
+
+                                            if (rows.length === 0) return <div style={{ color: '#999', fontSize: '12px' }}>No cooking history.</div>;
+
+                                            return (
+                                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+                                                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#1f2937', marginBottom: '8px' }}>Cooking Activity Log</div>
+                                                    <div style={{ overflowX: 'auto' }}>
+                                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                                            <thead>
+                                                                <tr>
+                                                                    <th style={{ padding: '6px 8px', textAlign: 'left', width: '40px' }}>No</th>
+                                                                    <th style={{ padding: '6px 8px', textAlign: 'left' }}>Status</th>
+                                                                    <th style={{ padding: '6px 8px', textAlign: 'left' }}>Done By</th>
+                                                                    <th style={{ padding: '6px 8px', textAlign: 'left' }}>Approved By</th>
+                                                                    <th style={{ padding: '6px 8px', textAlign: 'center', width: '44px' }}>Rem</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {rows.map((row, idx) => {
+                                                                    const style = getStatusStyle(row.status);
+                                                                    return (
+                                                                        <tr key={`${detailEntry.id}-cook-history-${idx}`} style={{ borderTop: '1px solid #e2e8f0' }}>
+                                                                            <td style={{ padding: '6px 8px', fontWeight: '700' }}>{idx + 1}.</td>
+                                                                            <td style={{ padding: '6px 8px' }}>
+                                                                                <span style={{ background: style.bg, color: style.color, padding: '2px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: '700' }}>
+                                                                                    {row.status}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td style={{ padding: '6px 8px' }}>
+                                                                                <div style={{ fontWeight: '700', fontSize: '12px' }}>{row.doneBy ? getCollectorLabel(row.doneBy) : '-'}</div>
+                                                                                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>{formatShortDateTime(row.doneDate || null) || '-'}</div>
+                                                                            </td>
+                                                                            <td style={{ padding: '6px 8px' }}>
+                                                                                <div style={{ fontWeight: '700', fontSize: '12px' }}>{row.approvedBy ? getCollectorLabel(row.approvedBy) : '-'}</div>
+                                                                                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>{formatShortDateTime(row.approvedDate || null) || '-'}</div>
+                                                                            </td>
+                                                                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                                                                {row.remarks ? (
+                                                                                    <button
+                                                                                        onClick={() => setRemarksPopup({ isOpen: true, text: String(row.remarks || '') })}
+                                                                                        style={{ border: '1px solid #90caf9', background: '#e3f2fd', color: '#1565c0', borderRadius: '6px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px', fontWeight: '700' }}
+                                                                                        title="View Remarks"
+                                                                                    >
+                                                                                        🔍
+                                                                                    </button>
+                                                                                ) : '-'}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                    )}
+                                </div>
+
+                                {detailMode === 'history' && (
+                                <>
+                                {/* Pricing & Offers History */}
+                                <h4 style={{ margin: '24px 0 12px', fontSize: '14px', color: '#1e293b', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    💰 Pricing & Offers
+                                </h4>
+                                {(() => {
+                                    const off = detailEntry.offering;
+                                    const versions = off?.offerVersions || [];
+                                    if (!off && versions.length === 0) return <div style={{ color: '#94a3b8', fontSize: '13px', fontStyle: 'italic' }}>No pricing details available.</div>;
+
+                                    return (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                            {/* Final Rate Highlight */}
+                                            {(off?.finalPrice || off?.finalBaseRate) && (
+                                                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div>
+                                                        <div style={{ fontSize: '10px', color: '#166534', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Confirmed Final Price</div>
+                                                        <div style={{ fontSize: '24px', fontWeight: '900', color: '#14532d' }}>Rs {toNumberText(off.finalPrice || off.finalBaseRate || 0)}</div>
+                                                    </div>
+                                                    <div style={{ textAlign: 'right' }}>
+                                                        <div style={{ fontSize: '10px', color: '#166534', fontWeight: '700', marginBottom: '2px' }}>Base Rate Type</div>
+                                                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#15803d' }}>{(off.finalBaseRateType || off.baseRateType || '').replace(/_/g, '/')} / {formatRateUnitLabel(off.finalBaseRateUnit || off.baseRateUnit)}</div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Offer History */}
+                                            {versions.length > 0 && (
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
+                                                    {versions.map((ov: any, i: number) => (
+                                                        <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                                <span style={{ fontSize: '10px', fontWeight: '900', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px' }}>{ov.key}</span>
+                                                                {(ov.finalPrice || ov.finalBaseRate) && <span style={{ fontSize: '10px', fontWeight: '900', background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px' }}>PASSED</span>}
+                                                            </div>
+                                                            <div style={{ fontSize: '16px', fontWeight: '900', color: '#1e293b' }}>Rs {toNumberText(ov.offerBaseRateValue || ov.offeringPrice || 0)}</div>
+                                                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{(ov.baseRateType || '').replace(/_/g, '/')}</div>
+                                                            {(ov.finalPrice || ov.finalBaseRate) && (
+                                                                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #cbd5e1' }}>
+                                                                    <div style={{ fontSize: '9px', color: '#166534', fontWeight: '700' }}>Final: <span style={{ fontSize: '12px', fontWeight: '900' }}>Rs {toNumberText(ov.finalPrice || ov.finalBaseRate || 0)}</span></div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Single Offer Fallback */}
+                                            {versions.length === 0 && (off?.offerBaseRateValue || off?.offeringPrice) && (
+                                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+                                                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>Active Offer</div>
+                                                    <div style={{ fontSize: '18px', fontWeight: '900', color: '#1e293b' }}>Rs {toNumberText(off.offerBaseRateValue || off.offeringPrice || 0)}</div>
+                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>{(off.baseRateType || '').replace(/_/g, '/')} / {formatRateUnitLabel(off.baseRateUnit)}</div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                                    
+        </>
+                                )}
+
+                                {/* Cooking History & Remarks */}
+
+
+                                {/* GPS & Photos for Location Sample */}
+                                {detailEntry.entryType === 'LOCATION_SAMPLE' && (
+                                    <>
+                                        <h4 style={{ margin: '12px 0 10px', fontSize: '13px', color: '#e67e22', borderBottom: '2px solid #e67e22', paddingBottom: '6px' }}>📍 Location Details</h4>
+                                        {localGps ? (
+                                            <div style={{ marginBottom: '10px' }}>
+                                                <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '6px', border: '1px solid #e0e0e0', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ fontSize: '11px', color: '#666', fontWeight: '800', textTransform: 'uppercase' }}>GPS Coordinates Captured</div>
+                                                    <a
+                                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(localGps)}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={{ display: 'inline-block', padding: '6px 16px', background: '#e67e22', color: 'white', borderRadius: '4px', textDecoration: 'none', fontSize: '11px', fontWeight: '800', letterSpacing: '0.5px' }}
+                                                    >
+                                                        MAP LINK
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ marginBottom: '10px' }}>
+                                                <div style={{ background: '#fff7ed', padding: '12px', borderRadius: '6px', border: '1px solid #ffedd5', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ fontSize: '11px', color: '#9a3412', fontWeight: '800', textTransform: 'uppercase' }}>GPS Location Skipped</div>
+                                                    <button
+                                                        onClick={handleCaptureAndSaveGps}
+                                                        disabled={isCapturingGps || isSavingGps}
+                                                        style={{ 
+                                                            padding: '6px 16px', 
+                                                            background: '#3498db', 
+                                                            color: 'white', 
+                                                            borderRadius: '4px', 
+                                                            border: 'none',
+                                                            fontSize: '11px', 
+                                                            fontWeight: '800', 
+                                                            cursor: 'pointer',
+                                                            opacity: (isCapturingGps || isSavingGps) ? 0.7 : 1
+                                                        }}
+                                                    >
+                                                        {isCapturingGps ? 'Capturing...' : isSavingGps ? 'Saving...' : 'Add GPS'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {(detailEntry as any).godownImageUrl && (
+                                            <div style={{ marginBottom: '10px' }}>
+                                                <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px', fontWeight: '600' }}>Godown Image</div>
+                                                <a href={resolveMediaUrl((detailEntry as any).godownImageUrl)} target="_blank" rel="noopener noreferrer">
+                                                    <img src={resolveMediaUrl((detailEntry as any).godownImageUrl)} alt="Godown" style={{ maxWidth: '100%', maxHeight: '150px', borderRadius: '6px', border: '1px solid #e0e0e0' }} />
+                                                </a>
+                                            </div>
+                                        )}
+                                        {(detailEntry as any).paddyLotImageUrl && (
+                                            <div style={{ marginBottom: '10px' }}>
+                                                <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px', fontWeight: '600' }}>Paddy Lot Image</div>
+                                                <a href={resolveMediaUrl((detailEntry as any).paddyLotImageUrl)} target="_blank" rel="noopener noreferrer">
+                                                    <img src={resolveMediaUrl((detailEntry as any).paddyLotImageUrl)} alt="Paddy Lot" style={{ maxWidth: '100%', maxHeight: '150px', borderRadius: '6px', border: '1px solid #e0e0e0' }} />
+                                                </a>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                <button onClick={() => setDetailEntry(null)}
+                                    style={{ marginTop: '16px', width: '100%', padding: '8px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '4px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )})()
+            }
+
+            {pricingDetail && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        backgroundColor: 'rgba(0,0,0,0.55)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 1000,
+                        padding: '16px'
+                    }}
+                    onClick={() => setPricingDetail(null)}
+                >
+                    <div
+                        style={{
+                            background: '#ffffff',
+                            width: '100%',
+                            maxWidth: '1200px',
+                            borderRadius: '10px',
+                            boxShadow: '0 16px 50px rgba(0,0,0,0.25)',
+                            overflow: 'hidden',
+                            maxHeight: '90vh',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ background: pricingDetail.mode === 'offer' ? '#1565c0' : '#2e7d32', color: '#fff', padding: '14px 18px' }}>
+                            <div style={{ fontSize: '18px', fontWeight: '800' }}>
+                                {pricingDetail.mode === 'offer' ? 'Offer Details' : 'Final Details'}
+                            </div>
+                            <div style={{ fontSize: '12px', opacity: 0.95, marginTop: '4px' }}>
+                                {getPartyLabel(pricingDetail.entry)} | {toTitleCase(pricingDetail.entry.variety)} | {toTitleCase(pricingDetail.entry.location)}
+                            </div>
+                        </div>
+                        <div style={{ padding: '16px 18px 18px', overflowY: 'auto' }}>
+                            {pricingDetail.entry.offering ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                    {(() => {
+                                        const offering = pricingDetail.entry.offering!;
+                                        const versions = Array.isArray(offering.offerVersions) ? offering.offerVersions : [];
+                                        const visibleVersions = pricingDetail.mode === 'offer'
+                                            ? versions.filter((version: any) => version?.offerBaseRateValue || version?.offeringPrice)
+                                            : versions.filter((version: any) => version?.finalPrice || version?.finalBaseRate);
+
+                                        const getChargeText = (value?: number | null, unit?: string | null) => {
+                                            if (value === null || value === undefined || Number(value) === 0) return '-';
+                                            return `${toNumberText(value)} / ${formatToggleUnitLabel(unit || undefined)}`;
+                                        };
+                                        const getOfferRateText = (offInfo?: SampleEntry['offering']) => {
+                                            if (!offInfo) return '-';
+                                            const rateValue = offInfo.offerBaseRateValue ?? offInfo.offeringPrice;
+                                            if (!rateValue) return '-';
+                                            const typeText = offInfo.baseRateType ? offInfo.baseRateType.replace(/_/g, '/') : '-';
+                                            return `Rs ${toNumberText(rateValue)} / ${typeText} / ${formatRateUnitLabel(offInfo.baseRateUnit || undefined)}`;
+                                        };
+                                        const getFinalRateText = (offInfo?: SampleEntry['offering']) => {
+                                            if (!offInfo) return '-';
+                                            const rateValue = offInfo.finalPrice ?? offInfo.finalBaseRate;
+                                            if (!rateValue) return '-';
+                                            const typeText = offInfo.baseRateType ? offInfo.baseRateType.replace(/_/g, '/') : '-';
+                                            return `Rs ${toNumberText(rateValue)} / ${typeText} / ${formatRateUnitLabel(offInfo.baseRateUnit || undefined)}`;
+                                        };
+                                        const getOfferSlotLabel = (key?: string | null) => {
+                                            const match = String(key || '').toUpperCase().match(/(\d+)/);
+                                            return match ? `Offer ${match[1]}` : 'Offer';
+                                        };
+                                        const getPricingRows = (offInfo: NonNullable<SampleEntry['offering']>, mode: 'offer' | 'final') => {
+                                            const isFinalMode = mode === 'final';
+                                            const suteValue = isFinalMode ? offInfo.finalSute : offInfo.sute;
+                                            const suteUnit = isFinalMode ? offInfo.finalSuteUnit : offInfo.suteUnit;
+                                            return [
+                                                [isFinalMode ? 'Final Rate' : 'Offer Rate', isFinalMode ? getFinalRateText(offInfo) : getOfferRateText(offInfo)],
+                                                ['Sute', suteValue ? `${toNumberText(suteValue)} / ${formatRateUnitLabel(suteUnit || undefined)}` : '-'],
+                                                ['Moisture', offInfo.moistureValue ? `${toNumberText(offInfo.moistureValue)}%` : '-'],
+                                                ['Hamali', getChargeText(offInfo.hamali, offInfo.hamaliUnit)],
+                                                ['Brokerage', getChargeText(offInfo.brokerage, offInfo.brokerageUnit)],
+                                                ['LF', getChargeText(offInfo.lf, offInfo.lfUnit)],
+                                                ['EGB', offInfo.egbType === 'mill' ? '0 / Mill' : offInfo.egbType === 'purchase' && offInfo.egbValue !== undefined && offInfo.egbValue !== null ? `${toNumberText(offInfo.egbValue)} / Purchase` : '-'],
+                                                ['CD', offInfo.cdEnabled ? offInfo.cdValue ? `${toNumberText(offInfo.cdValue)} / ${formatToggleUnitLabel(offInfo.cdUnit)}` : 'Pending' : '-'],
+                                                ['Bank Loan', offInfo.bankLoanEnabled ? offInfo.bankLoanValue ? `Rs ${formatIndianCurrency(offInfo.bankLoanValue)} / ${formatToggleUnitLabel(offInfo.bankLoanUnit)}` : 'Pending' : '-'],
+                                                ['Payment', offInfo.paymentConditionValue ? `${offInfo.paymentConditionValue} ${offInfo.paymentConditionUnit === 'month' ? 'Month' : 'Days'}` : '-']
+                                            ];
+                                        };
+
+                                        const renderGrid = (rows: any[], keyPrefix: string) => (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                                                {rows.map(([label, value]) => (
+                                                    <div key={`${keyPrefix}-${String(label)}`} style={{ background: '#f8f9fa', border: '1px solid #dfe3e8', borderRadius: '8px', padding: '10px 12px' }}>
+                                                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#5f6368', marginBottom: '4px' }}>{label}</div>
+                                                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#1f2937' }}>{value as string}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+
+                                        if (visibleVersions.length === 0) {
+                                            return renderGrid(getPricingRows(offering, pricingDetail.mode), 'current');
+                                        }
+
+                                        return (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                {visibleVersions.map((version: any, versionIndex: number) => {
+                                                    const pricingVersion = pricingDetail.mode === 'offer'
+                                                        ? {
+                                                            ...offering,
+                                                            offerBaseRateValue: version.offerBaseRateValue,
+                                                            offeringPrice: version.offeringPrice,
+                                                            baseRateType: version.baseRateType || offering.baseRateType,
+                                                            baseRateUnit: version.baseRateUnit || offering.baseRateUnit,
+                                                            moistureValue: version.moistureValue ?? offering.moistureValue,
+                                                            hamali: version.hamali ?? offering.hamali,
+                                                            hamaliUnit: version.hamaliUnit || offering.hamaliUnit,
+                                                            brokerage: version.brokerage ?? offering.brokerage,
+                                                            brokerageUnit: version.brokerageUnit || offering.brokerageUnit,
+                                                            lf: version.lf ?? offering.lf,
+                                                            lfUnit: version.lfUnit || offering.lfUnit,
+                                                            egbValue: version.egbValue ?? offering.egbValue,
+                                                            egbType: version.egbType || offering.egbType,
+                                                            cdValue: version.cdValue ?? offering.cdValue,
+                                                            cdUnit: version.cdUnit || offering.cdUnit,
+                                                            bankLoanValue: version.bankLoanValue ?? offering.bankLoanValue,
+                                                            bankLoanUnit: version.bankLoanUnit || offering.bankLoanUnit,
+                                                            paymentConditionValue: version.paymentConditionValue ?? offering.paymentConditionValue,
+                                                            paymentConditionUnit: version.paymentConditionUnit || offering.paymentConditionUnit
+                                                        }
+                                                        : {
+                                                            ...offering,
+                                                            finalPrice: version.finalPrice,
+                                                            finalBaseRate: version.finalBaseRate,
+                                                            finalBaseRateType: version.baseRateType || offering.finalBaseRateType || offering.baseRateType,
+                                                            finalBaseRateUnit: version.baseRateUnit || offering.finalBaseRateUnit || offering.baseRateUnit
+                                                        };
+                                                    return (
+                                                        <div key={`${String(version.key || 'version')}-${versionIndex}`} style={{ border: '1px solid #dfe3e8', borderRadius: '10px', padding: '12px', background: '#fff', minWidth: 0 }}>
+                                                            <div style={{ fontSize: '12px', fontWeight: '800', color: pricingDetail.mode === 'offer' ? '#1565c0' : '#2e7d32', marginBottom: '10px' }}>
+                                                                {pricingDetail.mode === 'offer' ? getOfferSlotLabel(version.key) : (version.key ? `${getOfferSlotLabel(version.key)} Final` : 'Final')}
+                                                            </div>
+                                                            {renderGrid(getPricingRows(pricingVersion as NonNullable<SampleEntry['offering']>, pricingDetail.mode), `${String(version.key || 'version')}-${versionIndex}`)}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            ) : (
+                                <div style={{ color: '#999', textAlign: 'center', padding: '12px' }}>No pricing data</div>
+                            )}
+                            <button
+                                onClick={() => setPricingDetail(null)}
+                                style={{
+                                    marginTop: '16px',
+                                    width: '100%',
+                                    padding: '9px',
+                                    backgroundColor: pricingDetail.mode === 'offer' ? '#1565c0' : '#2e7d32',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontSize: '13px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {remarksPopup.isOpen && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        backgroundColor: 'rgba(0,0,0,0.55)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 20000,
+                        padding: '16px'
+                    }}
+                    onClick={() => setRemarksPopup({ isOpen: false, text: '' })}
+                >
+                    <div
+                        style={{ background: '#fff', width: '100%', maxWidth: '420px', borderRadius: '10px', boxShadow: '0 16px 50px rgba(0,0,0,0.25)', padding: '16px' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ fontSize: '16px', fontWeight: '800', color: '#1f2937', marginBottom: '10px' }}>Remarks</div>
+                        <div style={{ fontSize: '13px', color: '#475569', background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: '60px' }}>
+                            {remarksPopup.text || '-'}
+                        </div>
+                        <button
+                            onClick={() => setRemarksPopup({ isOpen: false, text: '' })}
+                            style={{ marginTop: '12px', width: '100%', padding: '9px', background: '#1565c0', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
