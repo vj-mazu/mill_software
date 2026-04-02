@@ -13,8 +13,8 @@ const getApiUrl = (): string => {
     if (typeof process !== 'undefined' && process.env?.REACT_APP_API_URL) {
         return process.env.REACT_APP_API_URL;
     }
-    // Default
-    return 'http://localhost:5000/api';
+    // Default: relative path works with Vite proxy in local dev and deployed reverse proxies/cloud setups
+    return '/api';
 };
 
 export const API_URL = getApiUrl();
