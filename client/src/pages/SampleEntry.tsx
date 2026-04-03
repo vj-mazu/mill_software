@@ -131,16 +131,20 @@ const SampleEntryPage: React.FC<{
   };
   const isResampleWorkflowEntry = (entry: SampleEntry | any, qualityAttemptsOverride?: any[]) => {
     const qualityAttempts = qualityAttemptsOverride || getQualityAttemptsForEntry(entry as any);
-    const decision = String(entry?.lotSelectionDecision || '').trim().toUpperCase();
     const isConvertedLocationResample = String(entry?.entryType || '').toUpperCase() === 'LOCATION_SAMPLE'
       && !!String((entry as any)?.originalEntryType || '').trim()
       && String((entry as any)?.originalEntryType || '').toUpperCase() !== 'LOCATION_SAMPLE';
+    const hasExplicitResampleState =
+      Boolean(entry?.resampleStartAt)
+      || Boolean(entry?.resampleTriggerRequired)
+      || Boolean(entry?.resampleTriggeredAt)
+      || Boolean(entry?.resampleDecisionAt)
+      || Boolean(entry?.resampleAfterFinal)
+      || String(entry?.resampleOriginDecision || '').trim() !== '';
     return entry?.entryType !== 'RICE_SAMPLE'
       && String(entry?.workflowStatus || '').toUpperCase() !== 'FAILED'
       && (
-        decision === 'FAIL'
-        || decision === 'PASS_WITH_COOKING'
-        || Boolean(entry?.resampleStartAt)
+        hasExplicitResampleState
         || isConvertedLocationResample
         || getResampleCollectorNames(entry as any).length > 0
         || qualityAttempts.length > 1
@@ -2084,15 +2088,21 @@ const SampleEntryPage: React.FC<{
                             const latestQualityAttempt = qualityAttempts[qualityAttempts.length - 1] || qp || null;
                             const resampleAttempts = Math.max(0, qualityAttempts.length - 1);
                             const hasResampleCollectorTimeline = getResampleCollectorNames(entry as any).length > 0;
+                            const hasExplicitResampleState =
+                              Boolean((entry as any).resampleStartAt)
+                              || Boolean((entry as any).resampleTriggerRequired)
+                              || Boolean((entry as any).resampleTriggeredAt)
+                              || Boolean((entry as any).resampleDecisionAt)
+                              || Boolean((entry as any).resampleAfterFinal)
+                              || String((entry as any).resampleOriginDecision || '').trim() !== '';
                             const isPaddyResampleWorkflow =
                               filterEntryType !== 'RICE_SAMPLE'
+                              && entry.workflowStatus !== 'FAILED'
                               && (
-                                entry.lotSelectionDecision === 'FAIL'
-                                || entry.lotSelectionDecision === 'PASS_WITH_COOKING'
+                                hasExplicitResampleState
                                 || resampleAttempts > 0
                                 || hasResampleCollectorTimeline
-                              )
-                              && entry.workflowStatus !== 'FAILED';
+                              );
                             
                             const resampleQualitySaved = isPaddyResampleWorkflow
                               && qualityAttempts.length > 1
