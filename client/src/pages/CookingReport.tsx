@@ -1083,7 +1083,7 @@ const CookingReport: React.FC<CookingReportProps> = ({ entryType, excludeEntryTy
     }
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, border: '1px solid #000' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0 }}>
         {statusRows.map((row, index) => (
           <div
             key={`${entry.id}-cook-status-${index}`}

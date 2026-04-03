@@ -2,10 +2,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import axios from 'axios';
 
 import { API_URL } from '../config/api';
-const API_BASE_URL = API_URL;
-
-// Configure axios defaults
-axios.defaults.baseURL = API_BASE_URL;
 
 interface User {
   id: number;
@@ -100,7 +96,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string): Promise<void> => {
     try {
-      const response = await axios.post('/auth/login', {
+      const response = await axios.post(`${API_URL}/auth/login`, {
         username,
         password
       });

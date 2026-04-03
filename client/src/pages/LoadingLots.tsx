@@ -1555,7 +1555,7 @@ const LoadingLots: React.FC<LoadingLotsProps> = ({ entryType, excludeEntryType }
                                     </div>
                                   </td>
                                   <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'left', fontSize: '10px', lineHeight: '1.2' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, width: '100%', border: '1px solid #000' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, width: '100%' }}>
                                       {Array.from({ length: cookingAttemptCount }, (_, idx) => idx + 1).map((attemptNo) => {
                                           const attempt = cookingMap.get(attemptNo);
                                           const rawStatus = attempt?.status

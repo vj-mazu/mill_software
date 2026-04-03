@@ -1046,7 +1046,7 @@ const buildQualityStatusRows = (entry: SampleEntry) => {
         if (displayRows.length === 0) return null;
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', border: '1px solid #000' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
                 {displayRows.map((row, idx) => {
                     const style = getStatusStyle(row.status);
                     return (

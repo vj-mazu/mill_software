@@ -1759,15 +1759,21 @@ const FinalPassLots: React.FC<FinalPassLotsProps> = ({ entryType, excludeEntryTy
                                             <div 
                                               onClick={() => setAssignmentModal({ isOpen: true, entry })}
                                               style={{
-                                                fontSize: '11px',
+                                                fontSize: '10px',
                                                 fontWeight: 800,
                                                 color: '#1e3a8a',
                                                 backgroundColor: '#e0e7ff',
-                                                padding: '2px 6px',
+                                                padding: '1px 5px',
                                                 borderRadius: '4px',
                                                 cursor: 'pointer',
                                                 marginTop: '4px',
-                                                border: '1px solid #bfdbfe'
+                                                border: '1px solid #bfdbfe',
+                                                display: 'inline-block',
+                                                maxWidth: '78px',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                alignSelf: 'center'
                                               }}
                                             >
                                               {label}
