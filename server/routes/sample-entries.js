@@ -1677,9 +1677,17 @@ router.put('/:id', authenticateToken, async (req, res) => {
           updates.bags = parsedBags;
         }
 
+        const assignmentOnlyFields = new Set([
+          'sampleCollectedBy',
+          'resampleCollectedBy'
+        ]);
+        const submittedKeys = Object.keys(updates).filter((key) => updates[key] !== undefined);
+        const isAssignmentOnlyPayload = submittedKeys.length > 0
+          && submittedKeys.every((key) => assignmentOnlyFields.has(key));
         const isResampleAssignmentUpdate =
           Object.prototype.hasOwnProperty.call(updates, 'sampleCollectedBy')
-          && existingEntry.lotSelectionDecision === 'FAIL';
+          && existingEntry.lotSelectionDecision === 'FAIL'
+          && isAssignmentOnlyPayload;
 
         if (!isResampleAssignmentUpdate) {
           const mergedEntry = {
