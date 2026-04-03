@@ -958,12 +958,12 @@ const LotSelection: React.FC<LotSelectionProps> = ({ entryType, excludeEntryType
                                     <td style={{ border: '1px solid #000', padding: '2px 3px', verticalAlign: 'middle', fontSize: '11px', textAlign: 'center' }}>
                                       {/^\d+$/.test(String(entry.packaging || '26')) ? `${entry.packaging || '26'} Kg` : entry.packaging || '26'}
                                     </td>
-                                    <td style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'left', fontSize: '11px', whiteSpace: 'nowrap' }}>
+                                    <td style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'left', fontSize: '13px', whiteSpace: 'nowrap' }}>
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                         <button
                                           type="button"
                                           onClick={() => openEntryDetail(entry)}
-                                          style={{ background: 'transparent', border: 'none', color: '#1565c0', textDecoration: 'underline', cursor: 'pointer', fontWeight: 800, fontSize: '11px', padding: 0, textAlign: 'left' }}
+                                          style={{ background: 'transparent', border: 'none', color: '#1565c0', textDecoration: 'underline', cursor: 'pointer', fontWeight: 800, fontSize: '13px', padding: 0, textAlign: 'left' }}
                                         >
                                           {entry.entryType === 'DIRECT_LOADED_VEHICLE' && !entry.partyName?.trim() && entry.lorryNumber
                                             ? entry.lorryNumber.toUpperCase()
