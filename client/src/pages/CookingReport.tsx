@@ -1083,12 +1083,23 @@ const CookingReport: React.FC<CookingReportProps> = ({ entryType, excludeEntryTy
     }
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: '100%', minWidth: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, border: '1px solid #000' }}>
         {statusRows.map((row, index) => (
           <div
             key={`${entry.id}-cook-status-${index}`}
             onClick={row.info.label === 'Pending' ? undefined : () => handleOpenHistory(entry, 'all')}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '10px', cursor: row.info.label === 'Pending' ? 'default' : 'pointer', flexWrap: 'wrap', maxWidth: '100%' }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '3px',
+              fontSize: '10px',
+              cursor: row.info.label === 'Pending' ? 'default' : 'pointer',
+              width: '100%',
+              padding: '4px 3px',
+              borderBottom: index === statusRows.length - 1 ? 'none' : '1px solid #000'
+            }}
             title={row.info.label === 'Pending' ? undefined : "Click to see full history"}
           >
             <span style={{ fontWeight: 700, color: '#555' }}>{row.label}</span>

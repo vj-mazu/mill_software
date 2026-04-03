@@ -1555,7 +1555,7 @@ const LoadingLots: React.FC<LoadingLotsProps> = ({ entryType, excludeEntryType }
                                     </div>
                                   </td>
                                   <td style={{ border: '1px solid #000', padding: '4px 5px', textAlign: 'left', fontSize: '10px', lineHeight: '1.2' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, width: '100%', border: '1px solid #000' }}>
                                       {Array.from({ length: cookingAttemptCount }, (_, idx) => idx + 1).map((attemptNo) => {
                                           const attempt = cookingMap.get(attemptNo);
                                           const rawStatus = attempt?.status
@@ -1579,8 +1579,15 @@ const LoadingLots: React.FC<LoadingLotsProps> = ({ entryType, excludeEntryType }
                                                     : { background: '#f3f4f6', color: '#6b7280' };
 
                                           return (
-                                            <div key={`${entry.id}-cooking-${attemptNo}`}>
-                                              <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '6px', fontSize: '10px' }}>
+                                            <div
+                                              key={`${entry.id}-cooking-${attemptNo}`}
+                                              style={{
+                                                width: '100%',
+                                                padding: '3px 2px',
+                                                borderBottom: attemptNo === cookingAttemptCount ? 'none' : '1px solid #000'
+                                              }}
+                                            >
+                                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', fontSize: '10px' }}>
                                                 <span style={{ fontSize: '9px', fontWeight: '800', color: '#334155' }}>{attemptNo === 1 ? '1st S.' : attemptNo === 2 ? '2nd S.' : `${attemptNo}th S.` }</span>
                                                 <span style={{ ...statusStyle, padding: '2px 6px', borderRadius: '10px', fontSize: '9px', fontWeight: 700, whiteSpace: 'nowrap' }}>{statusText}</span>
                                               </div>

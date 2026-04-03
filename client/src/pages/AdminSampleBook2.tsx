@@ -1046,11 +1046,23 @@ const buildQualityStatusRows = (entry: SampleEntry) => {
         if (displayRows.length === 0) return null;
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', width: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', border: '1px solid #000' }}>
                 {displayRows.map((row, idx) => {
                     const style = getStatusStyle(row.status);
                     return (
-                        <div key={`${entry.id}-cook-status-${idx}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '100%' }}>
+                        <div
+                            key={`${entry.id}-cook-status-${idx}`}
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '2px',
+                                width: '100%',
+                                padding: '3px 2px',
+                                borderBottom: idx === displayRows.length - 1 ? 'none' : '1px solid #000'
+                            }}
+                        >
                             <span style={{ fontSize: '9px', fontWeight: '800', color: '#334155' }}>
                                 {getSamplingLabel(idx + 1)}
                             </span>
