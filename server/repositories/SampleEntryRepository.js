@@ -245,12 +245,15 @@ class SampleEntryRepository {
       };
     } else if (requestedStatus === 'RESAMPLE_COOKING_BOOK') {
       // Special resample-after-cooking flow should stay visible across active stages
-      // as long as an earlier cooking cycle already exists on the lot.
+      // after resample pending moves the lot into a cooking-required path.
+      // Do not require an existing cooking report row here, because
+      // PASS_WITHOUT_COOKING -> RESAMPLE -> PASS_WITH_COOKING is a valid
+      // resample cooking entry even before the first resample cooking report
+      // is added.
       where[Op.and] = [
         {
           workflowStatus: { [Op.in]: ['STAFF_ENTRY', 'QUALITY_CHECK', 'LOT_SELECTION', 'COOKING_REPORT', 'FINAL_REPORT', 'LOT_ALLOTMENT'] }
         },
-        { '$cookingReport.id$': { [Op.ne]: null } },
         {
           [Op.or]: [
             {
