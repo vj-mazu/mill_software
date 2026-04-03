@@ -68,6 +68,7 @@ app.use(helmet());
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
+  'https://millsoftware.vercel.app',
   'https://complete-paddy-rice-management-syst.vercel.app',
   'https://complete-paddy-rice-management-system.vercel.app',
   process.env.CLIENT_URL
