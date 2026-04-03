@@ -2125,7 +2125,14 @@ const SampleEntryPage: React.FC<{
                               if (raw !== '') return true;
                               return hasAlphaOrPositiveValue(valueVal);
                             };
-                            const baseHasQuality = !!latestQualityAttempt && hasFullQualitySnapshot(latestQualityAttempt);
+                            const hasPersistedQualityAttempt = Number((entry as any).qualityReportAttempts || 0) > 0;
+                            const hasPersistedCookingHistory = Boolean((entry as any).cookingReport?.status)
+                              || (Array.isArray((entry as any).cookingReport?.history)
+                                && (entry as any).cookingReport.history.some((attempt: any) => Boolean(String(attempt?.status || '').trim())));
+                            const inferredNormalQualityComplete = !isPaddyResampleWorkflow
+                              && (hasPersistedQualityAttempt || hasPersistedCookingHistory);
+                            const baseHasQuality = (!!latestQualityAttempt && hasFullQualitySnapshot(latestQualityAttempt))
+                              || inferredNormalQualityComplete;
                             const baseHas100Grams = entry.entryType !== 'RICE_SAMPLE'
                               && !!latestQualityAttempt
                               && hasSampleBookReadySnapshot(latestQualityAttempt)
