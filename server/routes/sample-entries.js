@@ -34,6 +34,7 @@ const isResampleWorkflowMarker = (entry = {}) => {
   return decision === 'FAIL'
     || decision === 'PASS_WITH_COOKING'
     || originDecision === 'PASS_WITH_COOKING'
+    || originDecision === 'PASS_WITHOUT_COOKING'
     || Boolean(entry?.resampleTriggerRequired)
     || Boolean(entry?.resampleTriggeredAt)
     || Boolean(entry?.resampleDecisionAt)
@@ -1927,6 +1928,7 @@ router.post('/:id/quality-parameters', authenticateToken, async (req, res) => {
         const existingQuality = await QualityParametersService.getQualityParametersBySampleEntry(req.params.id);
         if (existingQuality) {
           const sampleEntry = await SampleEntry.findByPk(req.params.id);
+          await hydrateSampleEntryWorkflowState(sampleEntry);
           const recheckState = await getRecheckState(
             req.params.id,
             existingQuality?.updatedAt || existingQuality?.createdAt || null,

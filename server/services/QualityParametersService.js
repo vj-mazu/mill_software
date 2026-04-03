@@ -13,6 +13,7 @@ const isResampleWorkflowEntry = (entry = {}) => {
     || (Array.isArray(entry.resampleCollectedHistory) && entry.resampleCollectedHistory.length > 0);
   return decision === 'FAIL'
     || originDecision === 'PASS_WITH_COOKING'
+    || originDecision === 'PASS_WITHOUT_COOKING'
     || Boolean(entry.resampleTriggerRequired)
     || Boolean(entry.resampleTriggeredAt)
     || Boolean(entry.resampleDecisionAt)
