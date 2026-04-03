@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import PaddyHamaliRatesTable from '../components/PaddyHamaliRatesTable';
 import RiceHamaliRatesTable from '../components/RiceHamaliRatesTable';
+import { API_URL } from '../config/api';
 
 const Container = styled.div`
   animation: fadeIn 0.5s ease-in;
@@ -398,7 +399,7 @@ const Locations: React.FC = () => {
 
       if (editingOutturn) {
         // Update existing outturn
-        await axios.put(`/outturns/${editingOutturn.id}`,
+        await axios.put(`${API_URL}/outturns/${editingOutturn.id}`,
           { code: outturnCode, allottedVariety, type: outturnType },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -406,7 +407,7 @@ const Locations: React.FC = () => {
         setEditingOutturn(null);
       } else {
         // Create new outturn
-        await axios.post('/outturns',
+        await axios.post(`${API_URL}/outturns`,
           { code: outturnCode, allottedVariety, type: outturnType },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -444,7 +445,7 @@ const Locations: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`/outturns/${id}`, {
+      await axios.delete(`${API_URL}/outturns/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -466,7 +467,7 @@ const Locations: React.FC = () => {
 
       if (editingWarehouse) {
         // Update existing
-        await axios.put(`/locations/warehouses/${editingWarehouse.id}`, {
+        await axios.put(`${API_URL}/locations/warehouses/${editingWarehouse.id}`, {
           name: warehouseName.toUpperCase(),
           code: editingWarehouse.code, // Keep existing code
           isActive: true
@@ -475,7 +476,7 @@ const Locations: React.FC = () => {
         setEditingWarehouse(null);
       } else {
         // Create new
-        await axios.post('/locations/warehouses', {
+        await axios.post(`${API_URL}/locations/warehouses`, {
           name: warehouseName.toUpperCase(),
           code,
           isActive: true
@@ -501,7 +502,7 @@ const Locations: React.FC = () => {
 
       if (editingKunchinittu) {
         // Update existing
-        await axios.put(`/locations/kunchinittus/${editingKunchinittu.id}`, {
+        await axios.put(`${API_URL}/locations/kunchinittus/${editingKunchinittu.id}`, {
           name: kunchinintuName.toUpperCase(),
           code: editingKunchinittu.code,
           warehouseId: parseInt(selectedWarehouseId),
@@ -512,7 +513,7 @@ const Locations: React.FC = () => {
         setEditingKunchinittu(null);
       } else {
         // Create new
-        await axios.post('/locations/kunchinittus', {
+        await axios.post(`${API_URL}/locations/kunchinittus`, {
           name: kunchinintuName.toUpperCase(),
           code,
           warehouseId: parseInt(selectedWarehouseId),
@@ -543,7 +544,7 @@ const Locations: React.FC = () => {
 
       if (editingVariety) {
         // Update existing
-        await axios.put(`/locations/varieties/${editingVariety.id}`, {
+        await axios.put(`${API_URL}/locations/varieties/${editingVariety.id}`, {
           name: varietyName.toUpperCase(),
           code: editingVariety.code,
           isActive: true
@@ -552,7 +553,7 @@ const Locations: React.FC = () => {
         setEditingVariety(null);
       } else {
         // Create new
-        await axios.post('/locations/varieties', {
+        await axios.post(`${API_URL}/locations/varieties`, {
           name: varietyName.toUpperCase(),
           code,
           isActive: true
@@ -578,7 +579,7 @@ const Locations: React.FC = () => {
       const code = riceVarietyName.substring(0, 15).toUpperCase().replace(/\s+/g, '-');
 
       if (editingRiceVariety) {
-        await axios.put(`/locations/rice-varieties/${editingRiceVariety.id}`, {
+        await axios.put(`${API_URL}/locations/rice-varieties/${editingRiceVariety.id}`, {
           name: riceVarietyName.toUpperCase(),
           code, // Re-generate or keep? Let's re-generate for simplicity or allow edit code later
           isActive: true
@@ -586,7 +587,7 @@ const Locations: React.FC = () => {
         toast.success('Rice Variety updated successfully!');
         setEditingRiceVariety(null);
       } else {
-        await axios.post('/locations/rice-varieties', {
+        await axios.post(`${API_URL}/locations/rice-varieties`, {
           name: riceVarietyName.toUpperCase(),
           code,
           isActive: true
@@ -607,7 +608,7 @@ const Locations: React.FC = () => {
     }
 
     try {
-      await axios.delete(`/locations/${type === 'riceVariety' ? 'rice-varieties' : type + 's'}/${id}`);
+      await axios.delete(`${API_URL}/locations/${type === 'riceVariety' ? 'rice-varieties' : type + 's'}/${id}`);
 
       toast.success(`${type === 'riceVariety' ? 'Rice Variety' : type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully!`);
 
@@ -699,12 +700,12 @@ const Locations: React.FC = () => {
       };
 
       if (editingPackaging) {
-        const response = await axios.put(`/packagings/${editingPackaging.id}`, payload, {
+        const response = await axios.put(`${API_URL}/packagings/${editingPackaging.id}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success('Packaging updated successfully and related records recalculated!');
       } else {
-        await axios.post('/packagings', payload, {
+        await axios.post(`${API_URL}/packagings`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success('Packaging created successfully!');
@@ -732,7 +733,7 @@ const Locations: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`/packagings/${id}`, {
+      await axios.delete(`${API_URL}/packagings/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Packaging deleted successfully!');
@@ -752,7 +753,7 @@ const Locations: React.FC = () => {
   const fetchRiceStockLocations = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get<{ locations: any[] }>('/locations/rice-stock-locations', {
+      const response = await axios.get<{ locations: any[] }>(`${API_URL}/locations/rice-stock-locations`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setRiceStockLocations(response.data.locations || []);
@@ -781,12 +782,12 @@ const Locations: React.FC = () => {
       };
 
       if (editingRiceStockLocation) {
-        await axios.put(`/locations/rice-stock-locations/${editingRiceStockLocation.id}`, payload, {
+        await axios.put(`${API_URL}/locations/rice-stock-locations/${editingRiceStockLocation.id}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success('Rice stock location updated successfully!');
       } else {
-        await axios.post('/locations/rice-stock-locations', payload, {
+        await axios.post(`${API_URL}/locations/rice-stock-locations`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success('Rice stock location created successfully!');
@@ -813,7 +814,7 @@ const Locations: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`/locations/rice-stock-locations/${id}`, {
+      await axios.delete(`${API_URL}/locations/rice-stock-locations/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Rice stock location deleted successfully!');
@@ -868,7 +869,7 @@ const Locations: React.FC = () => {
         looseTumbidduRate: parseFloat(looseTumbidduRate)
       };
 
-      await axios.post('/hamali-rates', payload, {
+      await axios.post(`${API_URL}/hamali-rates`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -893,7 +894,7 @@ const Locations: React.FC = () => {
   const fetchBrokers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get<{ brokers: any[] }>('/locations/brokers', {
+      const response = await axios.get<{ brokers: any[] }>(`${API_URL}/locations/brokers`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { t: Date.now() }
       });
@@ -923,12 +924,12 @@ const Locations: React.FC = () => {
       };
 
       if (editingBroker) {
-        await axios.put(`/locations/brokers/${editingBroker.id}`, payload, {
+        await axios.put(`${API_URL}/locations/brokers/${editingBroker.id}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success('Broker updated successfully!');
       } else {
-        await axios.post('/locations/brokers', payload, {
+        await axios.post(`${API_URL}/locations/brokers`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success('Broker created successfully!');
@@ -956,7 +957,7 @@ const Locations: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`/locations/brokers/${id}`, {
+      await axios.delete(`${API_URL}/locations/brokers/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Broker deleted successfully!');
